@@ -1,0 +1,106 @@
+name: Turnip
+
+# Builds Mesa's Turnip Vulkan driver for Adreno GPUs (scripts/build-turnip.sh)
+# for ArmadaOS handhelds, from the newest Mesa release and from Mesa's main
+# branch, checks that a bare Fedora 44 with the desktop's libraries can load
+# it, and publishes each as prerelease turnip-VERSION. Nothing uses it unless
+# VK_DRIVER_FILES points at it; the system's Mesa stays as it is.
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - scripts/build-turnip.sh
+      - .github/workflows/turnip.yml
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        ref: ["", main]
+    runs-on: ubuntu-24.04-arm
+    container: fedora:44
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build Turnip
+        run: scripts/build-turnip.sh out/turnip "${{ matrix.ref }}"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: turnip-${{ matrix.ref || 'release' }}
+          path: out/turnip/
+          retention-days: 3
+          compression-level: 0
+
+  check:
+    needs: build
+    # Mesa's main branch may not build on a given day; the release still goes on.
+    if: ${{ !cancelled() }}
+    strategy:
+      fail-fast: false
+      matrix:
+        ref: ["", main]
+    runs-on: ubuntu-24.04-arm
+    # Only the runtime libraries the CI's host job gives a bare Fedora 44, as
+    # ArmadaOS has them, and no development packages.
+    container: fedora:44
+    steps:
+      - uses: actions/download-artifact@v7
+        continue-on-error: ${{ matrix.ref == 'main' }}
+        with:
+          name: turnip-${{ matrix.ref || 'release' }}
+          path: out/turnip
+      - name: Resolve every library the driver needs
+        if: hashFiles('out/turnip/*.tar.xz') != ''
+        run: |
+          dnf -y -q install xz tar libdrm libxcb libX11-xcb libxshmfence libwayland-client \
+            libzstd expat zlib-ng-compat libdisplay-info libX11 libXrandr
+          mkdir -p check && tar -xJf out/turnip/*.tar.xz -C check
+          library="$(ls check/*/libvulkan_freedreno.so)"
+          ldd "$library"
+          if ldd "$library" | grep -q "not found"; then
+            echo "::error::Turnip needs a library a bare Fedora 44 desktop lacks"
+            exit 1
+          fi
+
+  publish:
+    needs: check
+    if: ${{ !cancelled() && needs.check.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: turnip-*
+          path: out
+          merge-multiple: true
+      - name: Publish each build as a prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          for archive in out/pinyon-arm64-turnip-*.tar.xz; do
+            name="$(basename "$archive" .tar.xz)"
+            version="${name#pinyon-arm64-turnip-}"
+            sha256="$(sha256sum "$archive" | cut -d' ' -f1 | tr a-f A-F)"
+            cat > notes.md <<NOTES
+          Mesa's Turnip Vulkan driver for Adreno GPUs, version $version, built for ArmadaOS (Fedora 44) on aarch64 by scripts/build-turnip.sh. It is not installed anywhere: the game loads it only when VK_DRIVER_FILES points at its manifest.
+
+          \`\`\`bash
+          mkdir -p ~/turnip && curl -sSL https://github.com/$GH_REPO/releases/download/turnip-$version/$name.tar.xz | tar -xJ -C ~/turnip
+          cd ~/.local/share/PinyonShift/source/0.1.1
+          VK_DRIVER_FILES=~/turnip/$name/freedreno_icd.json python3 tools/pinyon.py launch
+          \`\`\`
+
+          Mesa is under the MIT licence (LICENSE.rst inside). SHA-256: \`$sha256\`
+          NOTES
+            if gh release view "turnip-$version" >/dev/null 2>&1; then
+              gh release upload "turnip-$version" "$archive" --clobber
+            else
+              gh release create "turnip-$version" "$archive" --title "Turnip $version for ARM64 Linux" \
+                --notes-file notes.md --prerelease --latest=false --target "$GITHUB_SHA"
+            fi
+          done
