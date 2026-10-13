@@ -1,9 +1,10 @@
 name: ARM64 CI
 
-# Builds the ARM64 port of an upstream release on GitHub's ARM64 runner, in
-# the Fedora release ArmadaOS is built on: the pinned toolchain, the ShiftGlue
-# translator, the runtime, the GPU plugin and the host tests. No game files
-# are involved; the game itself is only ever built on the player's machine.
+# Builds the ARM64 port of an upstream release two ways: natively on GitHub's
+# ARM64 runner, in the Fedora release ArmadaOS is built on, and cross-compiled
+# on x86-64 Ubuntu as a PC or WSL builds it. Each builds the pinned toolchain,
+# the ShiftGlue translator, the runtime, the GPU plugin and the host tests. No
+# game files are involved; the game is only ever built on the player's machine.
 
 on:
   push:
@@ -32,13 +33,13 @@ jobs:
       - name: Install build dependencies
         run: |
           dnf install -y --setopt=install_weak_deps=False \
-            gcc-c++ libstdc++-static glibc-devel lld git python3 tar xz unzip \
+            gcc-c++ libstdc++-static glibc-devel lld git python3 tar xz unzip file \
             pkgconf-pkg-config libX11-devel libxcb-devel libXext-devel libXcursor-devel \
             libXi-devel libXrandr-devel libXScrnSaver-devel libXfixes-devel libXtst-devel \
             libxkbcommon-devel wayland-devel wayland-protocols-devel libdecor-devel \
             mesa-libEGL-devel mesa-libGL-devel mesa-libgbm-devel libdrm-devel \
             alsa-lib-devel pulseaudio-libs-devel pipewire-devel systemd-devel dbus-devel
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Check out upstream and apply the patches
         env:
           REF: ${{ inputs.ref }}
@@ -48,3 +49,26 @@ jobs:
       - name: Disk usage
         if: always()
         run: df -h "$RUNNER_TEMP" || true
+
+  cross:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+      - uses: actions/checkout@v5
+      - name: Install the cross compiler and arm64 packages
+        run: |
+          scripts/wsl-setup.sh
+          sudo apt-get install -y qemu-user-static file
+      - name: Check out upstream and apply the patches
+        env:
+          REF: ${{ inputs.ref }}
+        run: scripts/prepare-source.sh "$RUNNER_TEMP/pinyon-shift" ${REF:+"$REF"}
+      - name: Build and test
+        run: scripts/ci-host.sh "$RUNNER_TEMP/pinyon-shift"
+      - name: Disk usage
+        if: always()
+        run: df -h / || true

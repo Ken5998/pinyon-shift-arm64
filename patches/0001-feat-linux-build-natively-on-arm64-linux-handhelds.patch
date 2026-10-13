@@ -1,7 +1,7 @@
 From 3a6bdc38a1cd2090d1820a7f4d602206b9079c2e Mon Sep 17 00:00:00 2001
 From: Ken5998 <46025606+Ken5998@users.noreply.github.com>
 Date: Tue, 13 Oct 2026 13:18:51 +0000
-Subject: [PATCH] feat(linux): build natively on arm64 linux handhelds
+Subject: [PATCH 1/2] feat(linux): build natively on arm64 linux handhelds
 
 ArmadaOS and other aarch64 Linux systems on Snapdragon handhelds
 had no build path: setup stopped at host_platform. ShiftGlue already
