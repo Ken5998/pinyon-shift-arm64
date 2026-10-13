@@ -48,9 +48,16 @@ jobs:
     container: registry.fedoraproject.org/fedora:44
     timeout-minutes: 150
     steps:
-      # No compilers or development files, as on ArmadaOS: the sysroot has them.
-      - name: Install git and Python
-        run: dnf install -y --setopt=install_weak_deps=False git python3 tar xz file
+      # No compilers or development files, as on ArmadaOS: the sysroot has
+      # them. The X11, Wayland and audio libraries a desktop has, which the
+      # translator and the tests load when they run.
+      - name: Install git, Python and the desktop's libraries
+        run: |
+          dnf install -y --setopt=install_weak_deps=False git python3 tar xz file \
+            libX11 libX11-xcb libxcb libXext libXcursor libXi libXrandr libXScrnSaver \
+            libXfixes libXtst libxkbcommon libwayland-client libwayland-cursor \
+            libwayland-egl libdecor mesa-libEGL mesa-libGL mesa-libgbm libdrm alsa-lib \
+            pulseaudio-libs pipewire-libs systemd-libs dbus-libs
       - uses: actions/checkout@v5
       - uses: actions/download-artifact@v7
         with:
