@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pins the ARM64 sysroot in a source tree made by prepare-source.sh.
+"""Pins the ARM64 sysroot and Turnip in a source tree made by prepare-source.sh.
 
   scripts/pin-sysroot.py SOURCE                  the release in sysroot.json
   scripts/pin-sysroot.py SOURCE --archive FILE   a sysroot built here (CI)
@@ -8,7 +8,10 @@ Writes posix.linux-arm64.sysroot in SOURCE/config/release-toolchain.json and
 commits it in SOURCE, so setup downloads and checks the sysroot like the
 other tools. With --archive the file also goes into SOURCE/.local/downloads,
 where setup finds it without downloading. Without sysroot.json or --archive
-nothing changes and the build uses the host's development files.
+the build uses the host's development files.
+
+turnip.json pins posix.linux-arm64.turnip the same way: setup downloads that
+Turnip build and the game starts with it on an Adreno GPU (patch 0008).
 """
 
 from __future__ import annotations
@@ -48,6 +51,12 @@ def main() -> int:
     args = parser.parse_args()
     source = args.source.resolve()
 
+    config_path = source / "config" / "release-toolchain.json"
+    original = config_path.read_text(encoding="utf-8")
+    config = json.loads(original)
+    tools = config["posix"]["linux-arm64"]
+    pinned = []
+
     if args.archive:
         match = NAME.match(args.archive.name)
         if not match:
@@ -60,25 +69,40 @@ def main() -> int:
     elif (HERE / "sysroot.json").is_file():
         pin = json.loads((HERE / "sysroot.json").read_text(encoding="utf-8"))
     else:
+        pin = None
         print("No ARM64 sysroot pinned; the build uses the host's development files.")
-        return 0
+    if pin:
+        tools["sysroot"] = {
+            "label": "the ARM64 sysroot (Ubuntu 24.04)",
+            "version": pin["version"],
+            "url": pin["url"],
+            "sha256": pin["sha256"].upper(),
+            "install_path": f".local/toolchain/arm64-sysroot-{pin['version']}",
+            "executable": "",
+        }
+        pinned.append(f"sysroot {pin['version']}")
 
-    config_path = source / "config" / "release-toolchain.json"
-    config = json.loads(config_path.read_text(encoding="utf-8"))
-    config["posix"]["linux-arm64"]["sysroot"] = {
-        "label": "the ARM64 sysroot (Ubuntu 24.04)",
-        "version": pin["version"],
-        "url": pin["url"],
-        "sha256": pin["sha256"].upper(),
-        "install_path": f".local/toolchain/arm64-sysroot-{pin['version']}",
-        "executable": "",
-    }
-    config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+    if (HERE / "turnip.json").is_file():
+        pin = json.loads((HERE / "turnip.json").read_text(encoding="utf-8"))
+        tools["turnip"] = {
+            "label": "the Turnip Vulkan driver",
+            "version": pin["version"],
+            "url": pin["url"],
+            "sha256": pin["sha256"].upper(),
+            "install_path": f".local/toolchain/arm64-turnip-{pin['version']}",
+            "executable": "freedreno_icd.json",
+        }
+        pinned.append(f"turnip {pin['version']}")
+
+    updated = json.dumps(config, indent=2) + "\n"
+    if updated == original:
+        return 0
+    config_path.write_text(updated, encoding="utf-8")
     subprocess.run(["git", "-C", str(source), "-c", "user.name=pinyon-shift-arm64",
                     "-c", "user.email=pinyon-shift-arm64@users.noreply.github.com",
-                    "commit", "-q", "-m", f"chore: pin the arm64 sysroot {pin['version']}",
+                    "commit", "-q", "-m", "chore: pin the arm64 " + " and ".join(pinned),
                     "--", "config/release-toolchain.json"], check=True)
-    print(f"Pinned ARM64 sysroot {pin['version']} ({pin['sha256'][:12]})")
+    print("Pinned the ARM64 " + " and ".join(pinned))
     return 0
 
 

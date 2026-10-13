@@ -11,16 +11,19 @@ forbids distributing the disc, the generated translation or the binary.
 
 | Path | What it does |
 | --- | --- |
-| `patches/` | The port: `linux-arm64` CMake presets and toolchain, ARM64 support in `tools/pinyon_setup.py` (native with a pinned sysroot or the host's files, and cross from x86-64 with `--target linux-arm64`), the launcher on ARM64, the Android build's Adreno defaults at launch, docs. Applied with `git am` on an upstream release. |
+| `patches/` | The port: `linux-arm64` CMake presets and toolchain, ARM64 support in `tools/pinyon_setup.py` (native with a pinned sysroot or the host's files, and cross from x86-64 with `--target linux-arm64`), the launcher on ARM64, the Android build's Adreno defaults and the pinned Turnip at launch, docs. Applied with `git am` on an upstream release. |
 | `upstream.json` | The last upstream release the patches were verified on. |
 | `sysroot.json` | The published ARM64 sysroot the launcher downloads. |
-| `scripts/prepare-source.sh DEST [TAG]` | Checks out an upstream release, applies the patches and pins the sysroot (`scripts/pin-sysroot.py`). |
+| `turnip.json` | The published Turnip build the launcher downloads and starts the game with on an Adreno GPU. |
+| `scripts/prepare-source.sh DEST [TAG]` | Checks out an upstream release, applies the patches and pins the sysroot and Turnip (`scripts/pin-sysroot.py`). |
 | `scripts/build-sysroot.sh OUTDIR` | Builds the ARM64 sysroot from Ubuntu 24.04 arm64 packages, in an `ubuntu:24.04` arm64 container. |
+| `scripts/build-turnip.sh OUTDIR [REF]` | Builds Mesa's Turnip driver alone from a Mesa tag (default the newest release) or branch, in a `fedora:44` arm64 container. |
 | `scripts/package-launcher.sh SOURCE OUTDIR` | Packages the ARM64 launcher with the patched source, updates pointed at this repository. |
 | `scripts/wsl-setup.sh`, `scripts/build-game.sh`, `scripts/deploy.sh`, `scripts/auto-update.sh` | Build the game from your disc on a PC and copy it to the handheld (below). |
 | `scripts/ci-host.sh SOURCE` | On aarch64 Linux: provisions the pinned toolchain, builds the ShiftGlue translator, the runtime, the GPU plugin and the host tests, and runs the tests. |
 | `.github/workflows/ci.yml` | Builds the sysroot, then runs `ci-host.sh` on GitHub's `ubuntu-24.04-arm` runner in a bare Fedora 44 (the base of ArmadaOS) with that sysroot, the cross build on x86-64, and packages the launcher. |
 | `.github/workflows/sysroot.yml` | On demand: publishes the sysroot as release `sysroot-VERSION` and pins it in `sysroot.json`. |
+| `.github/workflows/turnip.yml` | On demand: builds Turnip from the newest Mesa release and from Mesa's main branch, checks that a bare Fedora 44 loads it and publishes each as prerelease `turnip-VERSION`. |
 | `.github/workflows/release.yml` | Publishes the launcher for an upstream release as release `vVERSION`. |
 | `.github/workflows/upstream-check.yml` | Every Monday: if upstream has a newer release, runs the CI on it, then records it in `upstream.json` and publishes its launcher when green, or opens an issue when not. |
 
@@ -31,16 +34,20 @@ forbids distributing the disc, the generated translation or the binary.
    the sysroot in a bare Fedora 44 (the base of ArmadaOS), and cross-compiled
    on x86-64. It also packages the launcher.
 2. `sysroot.yml`, run by hand when the sysroot changes, publishes it as
-   release `sysroot-VERSION` and pins it in `sysroot.json`.
+   release `sysroot-VERSION` and pins it in `sysroot.json`. `turnip.yml`,
+   also run by hand, publishes Turnip builds; a build tested on a handheld
+   is pinned in `turnip.json` by hand.
 3. `release.yml` publishes the launcher for the upstream release in
    `upstream.json` as release `vVERSION`. Every Monday `upstream-check.yml`
    tries the newest upstream release and runs it when CI is green.
 
 The launcher a release ships checks this repository for updates, and
-downloads the sysroot, LLVM, CMake and Ninja into
-`~/.local/share/PinyonShift` on first use. On ARM64 its **Play** starts the
-game with the Android build's Adreno and Turnip defaults (patch 0006,
-described in the patched `docs/LINUX_ARM64.md`).
+downloads the sysroot, Turnip, LLVM, CMake and Ninja into
+`~/.local/share/PinyonShift` on first use. On ARM64 its **Play** and the Steam
+shortcut start the game with the Android build's Adreno defaults (patch 0006)
+and, on an Adreno GPU, with the pinned Turnip (patch 0008), both described in
+the patched `docs/LINUX_ARM64.md`. `PINYON_SHIFT_SYSTEM_VULKAN=1` keeps the
+system's driver.
 
 ## Building the game without the launcher
 

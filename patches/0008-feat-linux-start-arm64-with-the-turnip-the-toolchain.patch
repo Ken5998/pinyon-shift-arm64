@@ -1,0 +1,122 @@
+From da9fe8b6bedc076f54351ac4e389e47fcd62fd8b Mon Sep 17 00:00:00 2001
+From: Ken5998 <46025606+Ken5998@users.noreply.github.com>
+Date: Tue, 13 Oct 2026 20:25:52 +0000
+Subject: [PATCH] feat(linux): start arm64 with the turnip the toolchain pins
+
+config/release-toolchain.json can now pin a Turnip build for linux-arm64.
+Setup downloads it with the other tools, and pinyon.py launch points
+VK_DRIVER_FILES at it on an Adreno GPU (msm kernel driver) when the
+system has every library it loads. On a Retroid Pocket 6, Turnip from
+Mesa's main branch holds 60 fps with shadows on, where the system's
+Mesa 26.2.4 runs 45 to 60.
+
+A VK_DRIVER_FILES or VK_ICD_FILENAMES the player set wins, and
+PINYON_SHIFT_SYSTEM_VULKAN=1 keeps the system's driver.
+---
+ docs/LINUX_ARM64.md   | 12 ++++++++++++
+ tools/pinyon.py       | 39 +++++++++++++++++++++++++++++++++++++++
+ tools/pinyon_setup.py |  2 +-
+ 3 files changed, 52 insertions(+), 1 deletion(-)
+
+diff --git a/docs/LINUX_ARM64.md b/docs/LINUX_ARM64.md
+index ce16a20..fec9b4e 100644
+--- a/docs/LINUX_ARM64.md
++++ b/docs/LINUX_ARM64.md
+@@ -148,6 +148,18 @@ waited on while their pipeline builds, and Turnip without shader preambles
+ python3 tools/pinyon.py launch -- --vulkan_bindless_textures=false
+ ```
+ 
++When `config/release-toolchain.json` pins a Turnip for `linux-arm64`, setup
++downloads it with the other tools and `pinyon.py launch` starts the game with
++it (`VK_DRIVER_FILES`) on an Adreno GPU, if the system has every library it
++loads. On a Retroid Pocket 6, Turnip from Mesa's main branch holds 60 fps with
++shadows on, where the system's Mesa 26.2.4 runs 45 to 60. A `VK_DRIVER_FILES`
++of your own wins, and `PINYON_SHIFT_SYSTEM_VULKAN=1` keeps the system's
++driver:
++
++```bash
++PINYON_SHIFT_SYSTEM_VULKAN=1 python3 tools/pinyon.py launch
++```
++
+ ## Not done yet
+ 
+ - Measurements on a device (frame rate, memory, thermals).
+diff --git a/tools/pinyon.py b/tools/pinyon.py
+index 8633d6c..ac1cbe3 100644
+--- a/tools/pinyon.py
++++ b/tools/pinyon.py
+@@ -79,12 +79,44 @@ ARM64_LINUX_DEFAULTS = (
+     "--vulkan_async_pipeline_wait_ms=0",
+ )
+ STATE_DIRECTORIES = ("cache", "config", "crashes", "logs", "reports", "update", "user")
++# Set to 1 to start the game with the system's Vulkan driver instead of the
++# Turnip that config/release-toolchain.json pins for ARM64 Linux.
++SYSTEM_VULKAN = "PINYON_SHIFT_SYSTEM_VULKAN"
+ 
+ 
+ class LaunchError(RuntimeError):
+     pass
+ 
+ 
++def pinned_turnip() -> Path | None:
++    """The Vulkan manifest of the Turnip driver setup unpacked for ARM64
++    Linux, or None: none is pinned or unpacked, the GPU is not an Adreno on
++    the msm kernel driver (the only one this Turnip is built for), or the
++    system lacks a library it loads."""
++    try:
++        item = pinyon_setup.platform_tools(pinyon_setup.toolchain_config(),
++                                           "linux-arm64").get("turnip")
++    except (OSError, KeyError, ValueError):
++        return None
++    if not item:
++        return None
++    install = ROOT / item["install_path"]
++    manifest = install / item["executable"]
++    library = install / "libvulkan_freedreno.so"
++    if not (manifest.is_file() and library.is_file()):
++        return None
++    drivers = [path.resolve().name
++               for path in Path("/sys/class/drm").glob("renderD*/device/driver")]
++    if not (Path("/sys/module/msm").is_dir() or any(d.startswith("msm") for d in drivers)):
++        return None
++    ldd = shutil.which("ldd")
++    if ldd:
++        check = subprocess.run([ldd, str(library)], capture_output=True, text=True)
++        if check.returncode or "not found" in check.stdout:
++            return None
++    return manifest
++
++
+ def default_build_directory(configuration: str) -> Path:
+     system = {"Windows": "win", "Darwin": "macos"}.get(platform.system(),
+                                                        platform.system().lower())
+@@ -213,6 +245,13 @@ def launch(args: argparse.Namespace) -> dict:
+         # What android_gpu_driver_no_preamble sets for Turnip on Android: FH1's
+         # many small draws run faster without shader preambles.
+         environment.setdefault("IR3_SHADER_DEBUG", "nopreamble")
++        # A Turnip newer than the distribution's: on a Retroid Pocket 6
++        # (Adreno 740) Mesa main held 60 fps with shadows where Mesa 26.2.4
++        # ran 45 to 60. A driver the player chose stays.
++        turnip = pinned_turnip()
++        chosen = environment.get("VK_DRIVER_FILES") or environment.get("VK_ICD_FILENAMES")
++        if turnip and not chosen and environment.get(SYSTEM_VULKAN) != "1":
++            environment["VK_DRIVER_FILES"] = str(turnip)
+     if args.hidden:
+         environment["REX_WINDOW_HIDDEN"] = "1"
+         arguments.append("--audio_mute=true")
+diff --git a/tools/pinyon_setup.py b/tools/pinyon_setup.py
+index 8b1faad..d00a126 100644
+--- a/tools/pinyon_setup.py
++++ b/tools/pinyon_setup.py
+@@ -318,7 +318,7 @@ def provision(progress: Progress, config: dict, name: str) -> dict:
+     name -> executable."""
+     tools = platform_tools(config, name)
+     found = {}
+-    ordered = [key for key in ("cmake", "ninja", "llvm", "sysroot") if key in tools]
++    ordered = [key for key in ("cmake", "ninja", "llvm", "sysroot", "turnip") if key in tools]
+     for index, key in enumerate(ordered):
+         item = tools[key]
+         install = ROOT / item["install_path"]
+-- 
+2.43.0
+

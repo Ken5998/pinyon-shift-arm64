@@ -41,13 +41,13 @@ repository's weekly check, the launcher offers the update.
 
 ## Settings for the Retroid Pocket 6
 
-With these, the Retroid Pocket 6 stays at or near 60 fps.
+With these, the Retroid Pocket 6 holds 60 fps, shadows included.
 
 - ArmadaOS power profile: **Balanced**. Eco is much slower, and Performance
   only adds heat and fan noise: the GPU already runs at its top clock.
 - In **settings > GRAPHICS**:
   - **GRAPHICS PRESET**: LOW-SPEC 60, with **RESOLUTION SCALE** 1X
-  - **SHADOWS**: off, or on for 45 to 60 fps: they change the look a lot
+  - **SHADOWS**: on
   - **SINGLE-PASS SCENE**: on
   - **REFLECTION UPDATES**: QUARTER
   - **SCENE SHADING**: COARSE
@@ -55,8 +55,13 @@ With these, the Retroid Pocket 6 stays at or near 60 fps.
 - In **settings > DISPLAY**: **OUTPUT SCALING** BILINEAR. FSR 1 and CAS are
   sharper at full screen but cost about 1 ms of GPU a frame.
 
-These are the choices of the Android build's SMOOTH 60 preset on the same
-chip, and the launcher starts the game with that build's Adreno defaults too.
+Apart from the shadows, these are the choices of the Android build's SMOOTH
+60 preset on the same chip, and the launcher starts the game with that build's
+Adreno defaults too. It also starts it with Turnip, the Adreno Vulkan driver,
+built from Mesa's development branch: with ArmadaOS's own Mesa 26.2.4 the
+shadows cost up to 15 fps. To go back to the system's driver, put
+`PINYON_SHIFT_SYSTEM_VULKAN=1 %command%` in the game's Steam launch options.
+
 The game always draws at 1280×720 or more: a smaller window does not make it
 faster.
 
