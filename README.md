@@ -41,7 +41,8 @@ repository's weekly check, the launcher offers the update.
 
 With these, the Retroid Pocket 6 stays at or near 60 fps.
 
-- ArmadaOS power profile: **Balanced** (Eco is much slower).
+- ArmadaOS power profile: **Balanced**. Eco is much slower, and Performance
+  only adds heat and fan noise: the GPU already runs at its top clock.
 - In **settings > GRAPHICS**:
   - **GRAPHICS PRESET**: LOW-SPEC 60, with **RESOLUTION SCALE** 1X
   - **SHADOWS**: off, or on for 45 to 60 fps: they change the look a lot
