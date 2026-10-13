@@ -2,7 +2,8 @@ name: Upstream release check
 
 # Once a week: when arcanite24/pinyon-shift has a newer release than the one
 # in upstream.json, apply the patches to it and run the ARM64 CI. A green
-# build records the release in upstream.json; a red one opens an issue.
+# build records the release in upstream.json and publishes its ARM64
+# launcher; a red one opens an issue.
 
 on:
   schedule:
@@ -63,6 +64,12 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -am "chore: verify upstream $TAG on arm64"
           git push
+
+  release:
+    needs: [check, record]
+    uses: ./.github/workflows/release.yml
+    with:
+      ref: ${{ needs.check.outputs.tag }}
 
   report:
     needs: [check, build]

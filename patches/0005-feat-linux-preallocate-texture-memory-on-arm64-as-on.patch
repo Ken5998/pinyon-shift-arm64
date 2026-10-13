@@ -1,0 +1,52 @@
+From 71a6c04111b81767d9c68a93b495c6e90ce2f649 Mon Sep 17 00:00:00 2001
+From: Ken5998 <46025606+Ken5998@users.noreply.github.com>
+Date: Tue, 13 Oct 2026 15:16:59 +0000
+Subject: [PATCH] feat(linux): preallocate texture memory on arm64 as on
+ android
+
+pinyon.py launch, which the launcher's Play runs, passes
+--vulkan_texture_memory_prealloc_mb=256 on ARM64 Linux unless the
+arguments already set it, as the Android build defaults to on the same
+Adreno GPUs.
+---
+ docs/LINUX_ARM64.md | 7 ++++---
+ tools/pinyon.py     | 6 ++++++
+ 2 files changed, 10 insertions(+), 3 deletions(-)
+
+diff --git a/docs/LINUX_ARM64.md b/docs/LINUX_ARM64.md
+index 5834e52..37556b4 100644
+--- a/docs/LINUX_ARM64.md
++++ b/docs/LINUX_ARM64.md
+@@ -128,11 +128,12 @@ has.
+ 
+ The handheld presets of the Android build are not in the desktop settings
+ menu. Start from **F6 > GRAPHICS > GRAPHICS PRESET > LOW-SPEC 60** at 1x, and
+-set **SCENE SHADING > COARSE**. Android preallocates 256 MB of texture memory
+-to avoid stalls on Adreno; the same works here:
++set **SCENE SHADING > COARSE**. As the Android build does on Adreno to avoid
++stalls, `pinyon.py launch` and the launcher's **Play** preallocate 256 MB of
++texture memory on ARM64; to turn that off:
+ 
+ ```bash
+-python3 tools/pinyon.py launch -- --vulkan_texture_memory_prealloc_mb=256
++python3 tools/pinyon.py launch -- --vulkan_texture_memory_prealloc_mb=0
+ ```
+ 
+ ## Not done yet
+diff --git a/tools/pinyon.py b/tools/pinyon.py
+index 449adab..60dc020 100644
+--- a/tools/pinyon.py
++++ b/tools/pinyon.py
+@@ -187,6 +187,12 @@ def launch(args: argparse.Namespace) -> dict:
+     if rally_ready:
+         environment["PINYON_SHIFT_RALLY_PREPARED"] = "1"
+     arguments = list(args.game_arguments)
++    # The Android build preallocates 256 MB of texture memory on the same
++    # Adreno GPUs, where growing it during play stalled the GPU thread; ARM64
++    # Linux handhelds start the same way unless told otherwise.
++    if (sys.platform.startswith("linux") and platform.machine().lower() in ("aarch64", "arm64")
++            and not any(a.startswith("--vulkan_texture_memory_prealloc_mb") for a in arguments)):
++        arguments.append("--vulkan_texture_memory_prealloc_mb=256")
+     if args.hidden:
+         environment["REX_WINDOW_HIDDEN"] = "1"
+         arguments.append("--audio_mute=true")

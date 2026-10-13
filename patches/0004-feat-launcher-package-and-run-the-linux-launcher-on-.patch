@@ -1,0 +1,179 @@
+From 9c4f50946a2222ffb21a47ff098b19d6b8613df1 Mon Sep 17 00:00:00 2001
+From: Ken5998 <46025606+Ken5998@users.noreply.github.com>
+Date: Tue, 13 Oct 2026 15:10:34 +0000
+Subject: [PATCH 4/4] feat(launcher): package and run the linux launcher on
+ arm64
+
+The desktop launcher picks the linux-arm64 setup platform and build
+preset on an ARM64 Linux device, updates from the linux-arm64 release
+archive, and package-launcher.py publishes that archive with
+--platform linux-arm64.
+---
+ docs/LINUX_ARM64.md                           | 20 ++++++++++++++----
+ .../Installation.cs                           |  6 ++++--
+ .../MainWindow.axaml.cs                       |  3 ++-
+ launcher/Shared/LauncherUpdate.cs             |  4 +++-
+ tools/package-launcher.py                     | 21 ++++++++++++-------
+ 5 files changed, 39 insertions(+), 15 deletions(-)
+
+diff --git a/docs/LINUX_ARM64.md b/docs/LINUX_ARM64.md
+index 939b6e7..5834e52 100644
+--- a/docs/LINUX_ARM64.md
++++ b/docs/LINUX_ARM64.md
+@@ -20,11 +20,24 @@ Debian-based ARM64 distributions work the same way.
+ - About 35 GB free for the first build.
+ - Your ISO of the USA retail disc (`MS-2505`).
+ 
+-There is no Steam Runtime sysroot for ARM64, so the build uses the system's
+-own headers and libraries. ArmadaOS is image-based and ships without
+-compilers, so the build runs inside a **distrobox** of the same Fedora
++There is no Steam Runtime sysroot for ARM64. When
++`config/release-toolchain.json` pins an ARM64 sysroot (an Ubuntu 24.04 arm64
++root with GCC 14's libstdc++ and the X11, Wayland and audio development
++files), setup downloads it like the other tools and the device needs only
++glibc, `git` and Python 3.11 or newer. Without one, the build uses the
++system's own headers and libraries; ArmadaOS is image-based and ships
++without them, so that build runs inside a **distrobox** of the same Fedora
+ release, and the game then runs on the host.
+ 
++## With the launcher
++
++A Linux ARM64 launcher archive (`PinyonShift-Launcher-linux-arm64.tar.gz`)
++works as on the Steam Deck: unpack it in Desktop Mode, start
++`PinyonShift/PinyonShiftLauncher`, choose your ISO and keep the device on its
++charger. Setup downloads LLVM, CMake, Ninja and the pinned sysroot into the
++launcher's install folder (`~/.local/share/PinyonShift`), builds the game
++there and starts it with **Play**. Nothing is installed on the system.
++
+ ## Build in a distrobox
+ 
+ In Desktop Mode, open Konsole:
+@@ -124,7 +137,6 @@ python3 tools/pinyon.py launch -- --vulkan_texture_memory_prealloc_mb=256
+ 
+ ## Not done yet
+ 
+-- A prebuilt ARM64 launcher; the build runs from a terminal.
+ - Measurements on a device (frame rate, memory, thermals).
+ - Launching from Steam's Gaming Mode on ArmadaOS, where Steam itself runs
+   under FEX, has not been verified.
+diff --git a/launcher/PinyonShift.Launcher.Desktop/Installation.cs b/launcher/PinyonShift.Launcher.Desktop/Installation.cs
+index f54fd85..5b00ecf 100644
+--- a/launcher/PinyonShift.Launcher.Desktop/Installation.cs
++++ b/launcher/PinyonShift.Launcher.Desktop/Installation.cs
+@@ -22,15 +22,17 @@ public sealed class Installation
+     public string Executable => Path.Combine(BuildDirectory, "pinyon_shift");
+     public static bool IsLinux => RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
+     public static bool IsMac => RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
++    /// <summary>An ARM64 Linux handheld (docs/LINUX_ARM64.md).</summary>
++    public static bool IsArm64 => RuntimeInformation.OSArchitecture == Architecture.Arm64;
+     public static string Version =>
+         typeof(Installation).Assembly.GetName().Version?.ToString(3) ?? "dev";
+ 
+-    private string Preset => IsMac ? "macos-arm64" : "linux-amd64";
++    private string Preset => IsMac ? "macos-arm64" : IsArm64 ? "linux-arm64" : "linux-amd64";
+ 
+     private Installation(string root)
+     {
+         Root = root;
+-        Platform = IsMac ? "macos-arm64" : "linux-x86_64";
++        Platform = IsMac ? "macos-arm64" : IsArm64 ? "linux-arm64" : "linux-x86_64";
+     }
+ 
+     private static bool IsSourceRoot(string path) =>
+diff --git a/launcher/PinyonShift.Launcher.Desktop/MainWindow.axaml.cs b/launcher/PinyonShift.Launcher.Desktop/MainWindow.axaml.cs
+index c5e6770..6078fdf 100644
+--- a/launcher/PinyonShift.Launcher.Desktop/MainWindow.axaml.cs
++++ b/launcher/PinyonShift.Launcher.Desktop/MainWindow.axaml.cs
+@@ -45,7 +45,8 @@ public partial class MainWindow : Window
+         }
+         _ = StartUpdateCheckAsync();
+         InstallText.Text = $"Installs to {_installation.Root}. The build needs about "
+-            + (Installation.IsMac ? "20" : "45") + " GB free and takes 20 to 60 minutes.";
++            + (Installation.IsMac ? "20" : Installation.IsArm64 ? "35" : "45") + " GB free and takes 20 to 60 minutes"
++            + (Installation.IsArm64 ? ", longer on a handheld." : ".");
+         if (!Installation.HasAppleDeveloperTools())
+         {
+             AppleToolsPanel.IsVisible = true;
+diff --git a/launcher/Shared/LauncherUpdate.cs b/launcher/Shared/LauncherUpdate.cs
+index b35fa99..5fa1bfd 100644
+--- a/launcher/Shared/LauncherUpdate.cs
++++ b/launcher/Shared/LauncherUpdate.cs
+@@ -95,6 +95,7 @@ public static class LauncherUpdate
+ {
+     public const string WindowsAsset = "PinyonShift-Launcher.zip";
+     public const string LinuxAsset = "PinyonShift-Launcher-linux-x86_64.tar.gz";
++    public const string LinuxArm64Asset = "PinyonShift-Launcher-linux-arm64.tar.gz";
+     public const string MacAsset = "PinyonShift-Launcher-macos-arm64.zip";
+     public const string PayloadName = "pinyon-shift-source.zip";
+     public const string StagingFolder = ".pinyon-update";
+@@ -106,7 +107,8 @@ public static class LauncherUpdate
+     private static bool IsLinux => RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
+     private static string LauncherFile => OperatingSystem.IsWindows() ? "PinyonShiftLauncher.exe" : "PinyonShiftLauncher";
+ 
+-    public static string AssetName => OperatingSystem.IsWindows() ? WindowsAsset : IsMac ? MacAsset : LinuxAsset;
++    public static string AssetName => OperatingSystem.IsWindows() ? WindowsAsset : IsMac ? MacAsset
++        : RuntimeInformation.OSArchitecture == Architecture.Arm64 ? LinuxArm64Asset : LinuxAsset;
+ 
+     /// <summary>False when PINYON_SHIFT_UPDATE_CHECK is 0, false or off.</summary>
+     public static bool CheckEnabled =>
+diff --git a/tools/package-launcher.py b/tools/package-launcher.py
+index 253cd08..34412d5 100644
+--- a/tools/package-launcher.py
++++ b/tools/package-launcher.py
+@@ -2,6 +2,7 @@
+ """Packages the Linux and macOS launchers (LX-8.5, MAC-8).
+ 
+   python tools/package-launcher.py --platform linux-x64
++  python tools/package-launcher.py --platform linux-arm64
+   python tools/package-launcher.py --platform osx-arm64      (on a Mac)
+ 
+ Both ship the Avalonia launcher in launcher/PinyonShift.Launcher.Desktop and
+@@ -9,6 +10,7 @@ the same source payload as the Windows release. The payload's file list is
+ the one in tools/package-launcher.ps1, so the releases cannot drift apart.
+ 
+   .artifacts/PinyonShift-Launcher-linux-x86_64.tar.gz
++  .artifacts/PinyonShift-Launcher-linux-arm64.tar.gz
+       PinyonShift/PinyonShiftLauncher, PinyonShift/pinyon-shift-source.zip
+   .artifacts/PinyonShift-Launcher-macos-arm64.zip
+       Pinyon Shift.app (ad-hoc signed; the payload is in Contents/Resources)
+@@ -89,11 +91,16 @@ def publish(runtime: str, version: str, output: Path) -> None:
+                     f"-p:Version={version}", f"-p:FileVersion={file_version}"], check=True)
+ 
+ 
+-def package_linux(version: str, payload: Path, published: Path | None = None) -> Path:
++LINUX_ARCHIVES = {"linux-x64": "PinyonShift-Launcher-linux-x86_64.tar.gz",
++                  "linux-arm64": "PinyonShift-Launcher-linux-arm64.tar.gz"}
++
++
++def package_linux(version: str, payload: Path, published: Path | None = None,
++                  runtime: str = "linux-x64") -> Path:
+     if published is None:
+-        published = ARTIFACTS / "publish-linux-x64"
+-        publish("linux-x64", version, published)
+-    release = ROOT / ".artifacts" / "PinyonShift-Launcher-linux-x86_64.tar.gz"
++        published = ARTIFACTS / f"publish-{runtime}"
++        publish(runtime, version, published)
++    release = ROOT / ".artifacts" / LINUX_ARCHIVES[runtime]
+     entries = [("PinyonShift/PinyonShiftLauncher", published / "PinyonShiftLauncher", 0o755),
+                ("PinyonShift/pinyon-shift-source.zip", payload, 0o644)]
+     with tarfile.open(release, "w:gz") as archive:
+@@ -173,7 +180,7 @@ def make_icns(path: Path) -> None:
+ 
+ def main() -> int:
+     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+-    parser.add_argument("--platform", choices=("linux-x64", "osx-arm64"), required=True)
++    parser.add_argument("--platform", choices=("linux-x64", "linux-arm64", "osx-arm64"), required=True)
+     parser.add_argument("--published", type=Path,
+                         help="an existing dotnet publish folder for the platform, made on "
+                              "another machine (.NET cross-publishes), instead of publishing here")
+@@ -184,8 +191,8 @@ def main() -> int:
+     payload = args.payload or ARTIFACTS / "pinyon-shift-source.zip"
+     if args.payload is None:
+         build_payload(payload)
+-    release = package_linux(version, payload, args.published) if args.platform == "linux-x64" \
+-        else package_mac(version, payload, args.published)
++    release = package_linux(version, payload, args.published, args.platform) \
++        if args.platform in LINUX_ARCHIVES else package_mac(version, payload, args.published)
+     print(release)
+     return 0
+ 
