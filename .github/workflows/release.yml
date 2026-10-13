@@ -33,7 +33,7 @@ jobs:
             echo "::error::No ARM64 sysroot is pinned yet; run the ARM64 sysroot workflow first."
             exit 1
           fi
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '8.0.x'
       - name: Check out upstream and apply the patches
