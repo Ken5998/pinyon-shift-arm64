@@ -3,15 +3,11 @@ name: Turnip
 # Builds Mesa's Turnip Vulkan driver for Adreno GPUs (scripts/build-turnip.sh)
 # for ArmadaOS handhelds, from the newest Mesa release and from Mesa's main
 # branch, checks that a bare Fedora 44 with the desktop's libraries can load
-# it, and publishes each as prerelease turnip-VERSION. Nothing uses it unless
-# VK_DRIVER_FILES points at it; the system's Mesa stays as it is.
+# it, and publishes each as prerelease turnip-VERSION. The launcher uses the
+# one turnip.json pins (patch 0008); the system's Mesa stays as it is.
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - scripts/build-turnip.sh
-      - .github/workflows/turnip.yml
 
 permissions:
   contents: write
@@ -87,7 +83,7 @@ jobs:
             version="${name#pinyon-arm64-turnip-}"
             sha256="$(sha256sum "$archive" | cut -d' ' -f1 | tr a-f A-F)"
             cat > notes.md <<NOTES
-          Mesa's Turnip Vulkan driver for Adreno GPUs, version $version, built for ArmadaOS (Fedora 44) on aarch64 by scripts/build-turnip.sh. It is not installed anywhere: the game loads it only when VK_DRIVER_FILES points at its manifest.
+          Mesa's Turnip Vulkan driver for Adreno GPUs, version $version, built for ArmadaOS (Fedora 44) on aarch64 by scripts/build-turnip.sh. It is not installed anywhere: the launcher uses the build turnip.json pins, and the game loads any other only when VK_DRIVER_FILES points at its manifest.
 
           \`\`\`bash
           mkdir -p ~/turnip && curl -sSL https://github.com/$GH_REPO/releases/download/turnip-$version/$name.tar.xz | tar -xJ -C ~/turnip
@@ -97,8 +93,10 @@ jobs:
 
           Mesa is under the MIT licence (LICENSE.rst inside). SHA-256: \`$sha256\`
           NOTES
+            # turnip.json pins an archive by its SHA-256: a published one
+            # never changes.
             if gh release view "turnip-$version" >/dev/null 2>&1; then
-              gh release upload "turnip-$version" "$archive" --clobber
+              echo "turnip-$version is already published; keeping it"
             else
               gh release create "turnip-$version" "$archive" --title "Turnip $version for ARM64 Linux" \
                 --notes-file notes.md --prerelease --latest=false --target "$GITHUB_SHA"
