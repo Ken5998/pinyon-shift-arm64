@@ -1,10 +1,12 @@
 name: ARM64 CI
 
 # Builds the ARM64 port of an upstream release two ways: natively on GitHub's
-# ARM64 runner, in the Fedora release ArmadaOS is built on, and cross-compiled
-# on x86-64 Ubuntu as a PC or WSL builds it. Each builds the pinned toolchain,
-# the ShiftGlue translator, the runtime, the GPU plugin and the host tests. No
-# game files are involved; the game is only ever built on the player's machine.
+# ARM64 runner, in a bare Fedora (the release ArmadaOS is built on) with the
+# ARM64 sysroot as the launcher uses it on a handheld, and cross-compiled on
+# x86-64 Ubuntu as a PC or WSL builds it. Each builds the pinned toolchain,
+# the ShiftGlue translator, the runtime, the GPU plugin and the host tests.
+# The launcher job packages the ARM64 launcher. No game files are involved;
+# the game is only ever built on the player's machine.
 
 on:
   push:
@@ -25,30 +27,66 @@ permissions:
   contents: read
 
 jobs:
+  sysroot:
+    runs-on: ubuntu-24.04-arm
+    container: ubuntu:24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build the ARM64 sysroot
+        run: scripts/build-sysroot.sh out/sysroot
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arm64-sysroot
+          path: out/sysroot/
+          retention-days: 3
+          compression-level: 0
+
   host:
+    needs: sysroot
     runs-on: ubuntu-24.04-arm
     container: registry.fedoraproject.org/fedora:44
     timeout-minutes: 150
     steps:
-      - name: Install build dependencies
-        run: |
-          dnf install -y --setopt=install_weak_deps=False \
-            gcc-c++ libstdc++-static glibc-devel lld git python3 tar xz unzip file \
-            pkgconf-pkg-config libX11-devel libxcb-devel libXext-devel libXcursor-devel \
-            libXi-devel libXrandr-devel libXScrnSaver-devel libXfixes-devel libXtst-devel \
-            libxkbcommon-devel wayland-devel wayland-protocols-devel libdecor-devel \
-            mesa-libEGL-devel mesa-libGL-devel mesa-libgbm-devel libdrm-devel \
-            alsa-lib-devel pulseaudio-libs-devel pipewire-devel systemd-devel dbus-devel
+      # No compilers or development files, as on ArmadaOS: the sysroot has them.
+      - name: Install git and Python
+        run: dnf install -y --setopt=install_weak_deps=False git python3 tar xz file
       - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          name: arm64-sysroot
+          path: out/sysroot
       - name: Check out upstream and apply the patches
         env:
           REF: ${{ inputs.ref }}
         run: scripts/prepare-source.sh "$RUNNER_TEMP/pinyon-shift" ${REF:+"$REF"}
+      - name: Use the sysroot built above
+        run: scripts/pin-sysroot.py "$RUNNER_TEMP/pinyon-shift" --archive out/sysroot/pinyon-arm64-sysroot-*.tar.xz
       - name: Build and test
         run: scripts/ci-host.sh "$RUNNER_TEMP/pinyon-shift"
       - name: Disk usage
         if: always()
         run: df -h "$RUNNER_TEMP" || true
+
+  launcher:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Check out upstream and apply the patches
+        env:
+          REF: ${{ inputs.ref }}
+        run: scripts/prepare-source.sh "$RUNNER_TEMP/pinyon-shift" ${REF:+"$REF"}
+      - name: Package the launcher
+        run: scripts/package-launcher.sh "$RUNNER_TEMP/pinyon-shift" out/launcher
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PinyonShift-Launcher-linux-arm64
+          path: out/launcher/PinyonShift-Launcher-linux-arm64.tar.gz
+          retention-days: 7
 
   cross:
     runs-on: ubuntu-24.04

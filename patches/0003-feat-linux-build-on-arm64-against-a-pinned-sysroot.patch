@@ -1,0 +1,211 @@
+From fd513c2ee5cbc18807bc6866bcd19a0b48de1a37 Mon Sep 17 00:00:00 2001
+From: Ken5998 <46025606+Ken5998@users.noreply.github.com>
+Date: Tue, 13 Oct 2026 15:10:04 +0000
+Subject: [PATCH 3/4] feat(linux): build on arm64 against a pinned sysroot
+
+When release-toolchain.json pins an ARM64 sysroot, setup unpacks it like
+the Steam Runtime sysroot on x86-64 and the build takes headers, GCC 14's
+libstdc++ and the X11, Wayland and audio development files from it. bin/
+wraps ld.lld, pkg-config and wayland-scanner with the few sysroot
+libraries they load, so an image-based system such as ArmadaOS needs only
+glibc, git and Python. Without a pinned sysroot the build uses the host's
+development files as before.
+---
+ cmake/toolchains/linux-arm64.cmake | 41 ++++++++++++---
+ tools/pinyon_setup.py              | 83 +++++++++++++++++++++++++-----
+ 2 files changed, 103 insertions(+), 21 deletions(-)
+
+diff --git a/cmake/toolchains/linux-arm64.cmake b/cmake/toolchains/linux-arm64.cmake
+index fbbbf79..a1e2045 100644
+--- a/cmake/toolchains/linux-arm64.cmake
++++ b/cmake/toolchains/linux-arm64.cmake
+@@ -2,16 +2,20 @@
+ # headers and libraries, for ARM handhelds such as the Retroid Pocket 6 or
+ # the AYN Odin 2 running ArmadaOS, ROCKNIX-derived or other desktop Linux.
+ #
+-# There is no Steam Runtime sysroot for ARM64, so the host provides glibc,
+-# libstdc++, X11 and Wayland development files. On an image-based system
+-# (ArmadaOS, Fedora Atomic) build inside a distrobox of the same Fedora
+-# release; the game then runs on the host (docs/LINUX_ARM64.md). libstdc++
+-# is linked statically, as on x86-64, so a newer container GCC never needs a
++# There is no Steam Runtime sysroot for ARM64. When release-toolchain.json
++# pins an ARM64 sysroot, setup unpacks it and the build uses nothing from the
++# host but glibc, as on x86-64. Otherwise the host provides glibc,
++# libstdc++, X11 and Wayland development files; on an image-based system
++# (ArmadaOS, Fedora Atomic) that means a distrobox of the same Fedora
++# release, and the game then runs on the host (docs/LINUX_ARM64.md).
++# libstdc++ is linked statically, as on x86-64, so a newer GCC never needs a
+ # newer host library.
+ #
+ # PINYON_LINUX_TOOLCHAIN (cache or environment) holds:
+ #   llvm/          LLVM 20.1.8 for ARM64 Linux
+-#   bin/ld.lld     setup's link to the linker that runs on this host
++#   bin/ld.lld     setup's link or wrapper to a linker that runs on this host
++#   sysroot/       the pinned sysroot, if any, with bin/pkg-config and
++#                  bin/wayland-scanner wrappers for its programs
+ set(CMAKE_SYSTEM_NAME Linux)
+ set(CMAKE_SYSTEM_PROCESSOR aarch64)
+ 
+@@ -42,7 +46,7 @@ endforeach()
+ 
+ set(_pinyon_link "-fuse-ld=lld -static-libstdc++")
+ # The LLVM release's ld.lld needs libxml2.so.2, which current distributions
+-# no longer ship; setup links bin/ld.lld to one that runs here.
++# no longer ship; setup points bin/ld.lld at a linker that runs here.
+ if(EXISTS "${PINYON_LINUX_TOOLCHAIN}/bin/ld.lld")
+   string(APPEND _pinyon_link " --ld-path=${PINYON_LINUX_TOOLCHAIN}/bin/ld.lld")
+ endif()
+@@ -50,12 +54,33 @@ set(CMAKE_EXE_LINKER_FLAGS_INIT "${_pinyon_link}")
+ set(CMAKE_SHARED_LINKER_FLAGS_INIT "${_pinyon_link}")
+ set(CMAKE_MODULE_LINKER_FLAGS_INIT "${_pinyon_link}")
+ 
++set(_pinyon_wrappers "${PINYON_LINUX_TOOLCHAIN}/bin")
++if(EXISTS "${PINYON_LINUX_TOOLCHAIN}/sysroot/usr/include")
++  # Clang takes GCC 14's headers and libstdc++ from the sysroot's
++  # /usr/lib/gcc/aarch64-linux-gnu/14 on its own.
++  set(CMAKE_SYSROOT "${PINYON_LINUX_TOOLCHAIN}/sysroot")
++  set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
++  set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
++  set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
++  set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
++  # pkg-config reads only the sysroot's .pc files; ArmadaOS has no
++  # pkg-config of its own, so the sysroot's runs through setup's wrapper.
++  set(ENV{PKG_CONFIG_SYSROOT_DIR} "${CMAKE_SYSROOT}")
++  set(ENV{PKG_CONFIG_LIBDIR}
++      "${CMAKE_SYSROOT}/usr/lib/aarch64-linux-gnu/pkgconfig:${CMAKE_SYSROOT}/usr/share/pkgconfig")
++  set(ENV{PKG_CONFIG_PATH} "")
++  if(NOT PKG_CONFIG_EXECUTABLE AND EXISTS "${_pinyon_wrappers}/pkg-config")
++    set(PKG_CONFIG_EXECUTABLE "${_pinyon_wrappers}/pkg-config" CACHE FILEPATH "")
++  endif()
++  if(NOT WAYLAND_SCANNER AND EXISTS "${_pinyon_wrappers}/wayland-scanner")
++    set(WAYLAND_SCANNER "${_pinyon_wrappers}/wayland-scanner" CACHE FILEPATH "")
++  endif()
+ # On an x86-64 Debian or Ubuntu host (WSL included) the target's libraries
+ # are the distribution's arm64 multiarch packages beside the host's, and its
+ # C++ runtime the aarch64 cross GCC's, which clang finds for this target.
+ # Built against Ubuntu 24.04 (glibc 2.39), the game runs on newer systems
+ # such as Fedora 44.
+-if(NOT CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "aarch64|arm64|ARM64")
++elseif(NOT CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "aarch64|arm64|ARM64")
+   set(CMAKE_LIBRARY_ARCHITECTURE aarch64-linux-gnu)
+   set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+   set(ENV{PKG_CONFIG_LIBDIR} "/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig")
+diff --git a/tools/pinyon_setup.py b/tools/pinyon_setup.py
+index efb1e6c..8b1faad 100644
+--- a/tools/pinyon_setup.py
++++ b/tools/pinyon_setup.py
+@@ -403,9 +403,10 @@ def prepare_host_wrappers(folder: Path, tools: dict) -> None:
+         wrapper.chmod(0o755)
+ 
+ 
+-# What the ARM64 build needs from the host (there is no Steam Runtime sysroot
+-# for ARM64): the C and C++ runtime, a linker and SDL's X11 and Wayland
+-# headers. The pkg-config names, then the Fedora packages that provide them.
++# What the ARM64 build needs from the host when release-toolchain.json pins
++# no ARM64 sysroot (there is no Steam Runtime sysroot for ARM64): the C and
++# C++ runtime, a linker and SDL's X11 and Wayland headers. The pkg-config
++# names, then the Fedora packages that provide them.
+ ARM64_HOST_PACKAGES = (
+     "gcc-c++ libstdc++-static glibc-devel lld git python3 pkgconf-pkg-config "
+     "libX11-devel libxcb-devel libXext-devel libXcursor-devel libXi-devel "
+@@ -417,21 +418,30 @@ ARM64_PKG_CONFIG = ("x11-xcb", "wayland-client", "xkbcommon", "xcursor", "xi", "
+                     "xscrnsaver", "xfixes", "xtst", "egl", "libdecor-0")
+ 
+ 
++def _link_folder(path: Path, target: Path) -> None:
++    if path.is_symlink() and Path(os.readlink(str(path))) == target:
++        return
++    if path.is_symlink() or path.is_file():
++        path.unlink()
++    elif path.exists():
++        shutil.rmtree(path)
++    os.symlink(str(target), str(path))
++
++
+ def prepare_linux_arm64_toolchain(tools: dict) -> None:
+     """The layout cmake/toolchains/linux-arm64.cmake reads: llvm/ and
+-    bin/ld.lld, a linker that runs on this host."""
++    bin/ld.lld, a linker that runs on this host, plus sysroot/ when one is
++    pinned."""
+     folder = LOCAL / "toolchain" / "linux-arm64"
+     (folder / "bin").mkdir(parents=True, exist_ok=True)
+-    llvm = folder / "llvm"
+     target = ROOT / tools["llvm"]["install_path"]
+-    if llvm.is_symlink() or llvm.exists():
+-        if not (llvm.is_symlink() and Path(os.readlink(str(llvm))) == target):
+-            if llvm.is_symlink():
+-                llvm.unlink()
+-            else:
+-                shutil.rmtree(llvm)
+-    if not llvm.is_symlink():
+-        os.symlink(str(target), str(llvm))
++    _link_folder(folder / "llvm", target)
++    if "sysroot" in tools:
++        prepare_linux_arm64_sysroot(folder, tools)
++        return
++    sysroot = folder / "sysroot"
++    if sysroot.is_symlink():
++        sysroot.unlink()
+     # The LLVM release's ld.lld links libxml2.so.2, which libxml2 2.14 and
+     # later no longer provide; the distribution's lld runs everywhere.
+     linker = None
+@@ -452,12 +462,59 @@ def prepare_linux_arm64_toolchain(tools: dict) -> None:
+             "the ARM64 build needs development files this system does not have ("
+             + ", ".join(missing) + "). On Fedora or in a Fedora distrobox install them with: "
+             "sudo dnf install " + ARM64_HOST_PACKAGES + " (docs/LINUX_ARM64.md)", "tools")
++    for stale in ("pkg-config", "wayland-scanner"):
++        if (folder / "bin" / stale).exists():
++            (folder / "bin" / stale).unlink()
+     link = folder / "bin" / "ld.lld"
+     if link.is_symlink() or link.exists():
+         link.unlink()
+     os.symlink(linker, str(link))
+ 
+ 
++# What the ARM64 sysroot's own programs (pkgconf, wayland-scanner) and the
++# LLVM release's ld.lld load from it: libxml2.so.2 with its ICU, libexpat and
++# libpkgconf. Nothing else of the sysroot reaches the host's loader.
++ARM64_HOST_LIBRARY = re.compile(
++    r"^lib(xml2\.so\.2|icuuc\.so\.\d+|icudata\.so\.\d+|expat\.so\.1|pkgconf\.so\.\d+)$")
++
++
++def prepare_linux_arm64_sysroot(folder: Path, tools: dict) -> None:
++    """With a pinned ARM64 sysroot (headers, GCC 14's libstdc++ and the X11,
++    Wayland and audio development files, as the Steam Runtime sysroot on
++    x86-64), the host needs only glibc, git and Python: nothing to install on
++    an image-based system such as ArmadaOS. bin/ wraps ld.lld, pkg-config and
++    wayland-scanner so only they load host-libs/."""
++    sysroot = ROOT / tools["sysroot"]["install_path"]
++    _link_folder(folder / "sysroot", sysroot)
++    libs = folder / "host-libs"
++    if libs.exists():
++        shutil.rmtree(libs)
++    libs.mkdir()
++    for entry in sorted((sysroot / "usr/lib/aarch64-linux-gnu").iterdir()):
++        if ARM64_HOST_LIBRARY.match(entry.name):
++            os.symlink(str(entry), str(libs / entry.name))
++    for name, target in (("ld.lld", ROOT / tools["llvm"]["install_path"] / "bin/ld.lld"),
++                         ("pkg-config", sysroot / "usr/bin/pkgconf"),
++                         ("wayland-scanner", sysroot / "usr/bin/wayland-scanner")):
++        wrapper = folder / "bin" / name
++        if wrapper.is_symlink() or wrapper.exists():
++            wrapper.unlink()
++        wrapper.write_text(
++            "#!/bin/sh\n"
++            "# Written by tools/pinyon_setup.py: runs the pinned program with the\n"
++            "# sysroot's libraries it needs and the host may lack.\n"
++            'libs="$(dirname -- "$0")/../host-libs"\n'
++            'LD_LIBRARY_PATH="$libs${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" '
++            f'exec {shlex.quote(str(target))} "$@"\n', encoding="utf-8")
++        wrapper.chmod(0o755)
++        probe = subprocess.run([str(wrapper), "--version"], capture_output=True, text=True)
++        if probe.returncode != 0:
++            raise SetupError(f"{name} from the ARM64 toolchain does not run on this system: "
++                             + (probe.stderr or probe.stdout).strip()[:300], "tools")
++    if not shutil.which("git"):
++        raise SetupError("git is needed to fetch ShiftGlue", "tools")
++
++
+ # On an x86-64 Debian or Ubuntu host (WSL included), the ARM64 build uses the
+ # distribution's aarch64 cross GCC and its multiarch arm64 libraries.
+ ARM64_CROSS_PACKAGES = (

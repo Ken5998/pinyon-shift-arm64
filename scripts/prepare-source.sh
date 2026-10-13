@@ -32,3 +32,6 @@ for patch in "$here"/patches/*.patch; do
     git -C "$dest" -c user.name="pinyon-shift-arm64" -c user.email="pinyon-shift-arm64@users.noreply.github.com" \
         am --3way --quiet "$patch"
 done
+
+# The ARM64 sysroot in sysroot.json, if one is published.
+python3 "$here/scripts/pin-sysroot.py" "$dest"
