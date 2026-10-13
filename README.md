@@ -39,21 +39,23 @@ repository's weekly check, the launcher offers the update.
 
 ## Settings for the Retroid Pocket 6
 
-With these, the Retroid Pocket 6 runs at about 34 fps racing in traffic and 40
-to 50 fps driving alone.
+With these, the Retroid Pocket 6 stays at or near 60 fps.
 
-- ArmadaOS power profile: **Balanced** (Eco stays around 30 fps).
+- ArmadaOS power profile: **Balanced** (Eco is much slower).
 - In **settings > GRAPHICS**:
   - **GRAPHICS PRESET**: LOW-SPEC 60, with **RESOLUTION SCALE** 1X
-  - **SHADOWS**: off
+  - **SHADOWS**: off, or on for 45 to 60 fps: they change the look a lot
   - **SINGLE-PASS SCENE**: on
   - **REFLECTION UPDATES**: QUARTER
   - **SCENE SHADING**: COARSE
   - **TEXTURE GAMMA**: FAST (applies at the next start)
+- In **settings > DISPLAY**: **OUTPUT SCALING** BILINEAR. FSR 1 and CAS are
+  sharper at full screen but cost about 1 ms of GPU a frame.
 
 These are the choices of the Android build's SMOOTH 60 preset on the same
-chip. The game always draws at 1280×720 or more: a smaller window does not
-make it faster.
+chip, and the launcher starts the game with that build's Adreno defaults too.
+The game always draws at 1280×720 or more: a smaller window does not make it
+faster.
 
 ## If something goes wrong
 
