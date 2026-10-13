@@ -36,6 +36,8 @@ repository's weekly check, the launcher offers the update.
 
 - **Select + Start** (or **F6**) opens the settings menu.
 - Pressing **both sticks** (or **F3**) shows the performance panel.
+- The built-in controls reach the game only when Steam starts it. In Desktop
+  Mode, start it from Steam too, from the entry **Add to Steam** made.
 
 ## Settings for the Retroid Pocket 6
 
