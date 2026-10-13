@@ -20,7 +20,7 @@ jobs:
       - uses: actions/checkout@v5
       - name: Build the ARM64 sysroot
         run: scripts/build-sysroot.sh out/sysroot "$(date -u +%Y.%m.%d).$GITHUB_RUN_NUMBER"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: arm64-sysroot
           path: out/sysroot/
@@ -32,7 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: arm64-sysroot
           path: out/sysroot
