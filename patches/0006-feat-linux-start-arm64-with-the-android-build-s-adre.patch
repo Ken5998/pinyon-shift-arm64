@@ -1,0 +1,108 @@
+From 6a3690e17c3aaec6aad1b8587e431cee35c197fd Mon Sep 17 00:00:00 2001
+From: Ken5998 <46025606+Ken5998@users.noreply.github.com>
+Date: Tue, 13 Oct 2026 17:38:42 +0000
+Subject: [PATCH] feat(linux): start arm64 with the android build's adreno
+ defaults
+
+pinyon.py launch, which the launcher's Play runs, now passes every
+restart-only GPU default the Android build sets for Adreno and Turnip on
+ARM64 Linux: bindless textures, shared memory through one texel buffer,
+IEEE vertex math, fast pixel math, specialized texture signs and
+skipped draws instead of placeholder pipelines, besides the texture
+memory preallocation. Each is skipped when the arguments set it.
+IR3_SHADER_DEBUG=nopreamble is set unless the environment has it.
+
+docs/LINUX_ARM64.md lists the menu settings Android's SMOOTH 60 uses.
+---
+ docs/LINUX_ARM64.md | 22 +++++++++++++++++-----
+ tools/pinyon.py     | 32 ++++++++++++++++++++++++++------
+ 2 files changed, 43 insertions(+), 11 deletions(-)
+
+diff --git a/docs/LINUX_ARM64.md b/docs/LINUX_ARM64.md
+index 37556b4..ce16a20 100644
+--- a/docs/LINUX_ARM64.md
++++ b/docs/LINUX_ARM64.md
+@@ -127,13 +127,25 @@ has.
+ ## Settings for a Snapdragon 8 Gen 2
+ 
+ The handheld presets of the Android build are not in the desktop settings
+-menu. Start from **F6 > GRAPHICS > GRAPHICS PRESET > LOW-SPEC 60** at 1x, and
+-set **SCENE SHADING > COARSE**. As the Android build does on Adreno to avoid
+-stalls, `pinyon.py launch` and the launcher's **Play** preallocate 256 MB of
+-texture memory on ARM64; to turn that off:
++menu. Its SMOOTH 60 holds 60 fps on an Odin 2 (the same SoC) with the game's
++shadows off and the scene drawn in one pass. In **F6 > GRAPHICS**, start from
++**GRAPHICS PRESET > LOW-SPEC 60** at 1x, then set:
++
++- **SHADOWS** off (about 6 ms of GPU a frame on the Odin 2)
++- **SINGLE-PASS SCENE** on (about 3 ms)
++- **REFLECTION UPDATES > QUARTER**
++- **SCENE SHADING > COARSE**
++- **TEXTURE GAMMA > FAST** (at the next start)
++
++`pinyon.py launch` and the launcher's **Play** start ARM64 Linux with the
++rest of the Android build's Adreno defaults, which the menu does not show:
++256 MB of preallocated texture memory, bindless textures, vertex fetches
++through one texel buffer, the faster shader math, draws skipped rather than
++waited on while their pipeline builds, and Turnip without shader preambles
++(`IR3_SHADER_DEBUG=nopreamble`). Arguments after `--` override any of them:
+ 
+ ```bash
+-python3 tools/pinyon.py launch -- --vulkan_texture_memory_prealloc_mb=0
++python3 tools/pinyon.py launch -- --vulkan_bindless_textures=false
+ ```
+ 
+ ## Not done yet
+diff --git a/tools/pinyon.py b/tools/pinyon.py
+index 60dc020..8633d6c 100644
+--- a/tools/pinyon.py
++++ b/tools/pinyon.py
+@@ -60,6 +60,24 @@ import pinyon_xe  # noqa: E402
+ ROOT = Path(__file__).resolve().parents[1]
+ WINDOWS = os.name == "nt"
+ EXECUTABLE = "pinyon_shift.exe" if WINDOWS else "pinyon_shift"
++# ARM64 Linux handhelds have the Snapdragon SoCs and Adreno GPUs the Android
++# build defaults are measured on, with the same Mesa Turnip driver, so they
++# start with those defaults; arguments after `--` override each one. Settings
++# the in-game menu changes are not here, since arguments outrank the menu.
++ARM64_LINUX_DEFAULTS = (
++    # Growing texture memory during play stalled the GPU thread.
++    "--vulkan_texture_memory_prealloc_mb=256",
++    # Recorder CPU and shader work measured on the Odin 2 (Adreno 740).
++    "--vulkan_bindless_textures=true",
++    "--vulkan_shared_memory_texel_buffer=true",
++    "--spirv_ieee_vertex_math=true",
++    "--spirv_fast_pixel_math=true",
++    "--spirv_specialize_texture_signs=true",
++    # A pipeline takes tens of milliseconds to build there: skip the draw
++    # until a worker has it instead of freezing new scenes.
++    "--vulkan_async_pipeline_no_placeholder=true",
++    "--vulkan_async_pipeline_wait_ms=0",
++)
+ STATE_DIRECTORIES = ("cache", "config", "crashes", "logs", "reports", "update", "user")
+ 
+ 
+@@ -187,12 +205,14 @@ def launch(args: argparse.Namespace) -> dict:
+     if rally_ready:
+         environment["PINYON_SHIFT_RALLY_PREPARED"] = "1"
+     arguments = list(args.game_arguments)
+-    # The Android build preallocates 256 MB of texture memory on the same
+-    # Adreno GPUs, where growing it during play stalled the GPU thread; ARM64
+-    # Linux handhelds start the same way unless told otherwise.
+-    if (sys.platform.startswith("linux") and platform.machine().lower() in ("aarch64", "arm64")
+-            and not any(a.startswith("--vulkan_texture_memory_prealloc_mb") for a in arguments)):
+-        arguments.append("--vulkan_texture_memory_prealloc_mb=256")
++    if sys.platform.startswith("linux") and platform.machine().lower() in ("aarch64", "arm64"):
++        for default in ARM64_LINUX_DEFAULTS:
++            name = default.split("=", 1)[0]
++            if not any(a.split("=", 1)[0] == name for a in arguments):
++                arguments.append(default)
++        # What android_gpu_driver_no_preamble sets for Turnip on Android: FH1's
++        # many small draws run faster without shader preambles.
++        environment.setdefault("IR3_SHADER_DEBUG", "nopreamble")
+     if args.hidden:
+         environment["REX_WINDOW_HIDDEN"] = "1"
+         arguments.append("--audio_mute=true")
+-- 
+2.43.0
+

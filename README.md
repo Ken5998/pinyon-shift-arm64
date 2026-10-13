@@ -32,7 +32,7 @@ passes the weekly check, it is published here and the launcher offers it.
 
 | Path | What it does |
 | --- | --- |
-| `patches/` | The port: `linux-arm64` CMake presets and toolchain, ARM64 support in `tools/pinyon_setup.py` (native with a pinned sysroot or the host's files, and cross from x86-64 with `--target linux-arm64`), the launcher on ARM64, docs. Applied with `git am` on an upstream release. |
+| `patches/` | The port: `linux-arm64` CMake presets and toolchain, ARM64 support in `tools/pinyon_setup.py` (native with a pinned sysroot or the host's files, and cross from x86-64 with `--target linux-arm64`), the launcher on ARM64, the Android build's Adreno defaults at launch, docs. Applied with `git am` on an upstream release. |
 | `upstream.json` | The last upstream release the patches were verified on. |
 | `sysroot.json` | The published ARM64 sysroot the launcher downloads. |
 | `scripts/prepare-source.sh DEST [TAG]` | Checks out an upstream release, applies the patches and pins the sysroot (`scripts/pin-sysroot.py`). |
@@ -50,7 +50,11 @@ passes the weekly check, it is published here and the launcher offers it.
 - Verified: the translator, runtime, GPU plugin and the 11 host tests build
   for aarch64 with the pinned LLVM 20.1.8, natively against the sysroot in a
   bare Fedora 44 and cross-compiled on x86-64, and the tests pass.
-- Not verified yet: a full game build and play session on a device.
+- On a Retroid Pocket 6 (ArmadaOS): the launcher builds the game on the
+  handheld in under half an hour and it plays, at about 20 fps with
+  LOW-SPEC 60 before the Android build's Adreno defaults were added.
+- Not verified yet: the frame rate with those defaults, and launching from
+  Steam's Gaming Mode.
 
 ## Building the game without the launcher
 
