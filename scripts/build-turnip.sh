@@ -27,6 +27,8 @@ dnf -y -q install dnf5-plugins git xz binutils jq
 # Fedora's own build dependencies of Mesa, so a newer Mesa finds what it needs.
 dnf -y -q builddep --enablerepo='fedora-source' --enablerepo='updates-source' mesa
 dnf -y -q install python3-pyyaml python3-packaging glslang
+# Mesa links SPIRV-Tools when it finds it, and a handheld may not have it.
+rpm -e --nodeps spirv-tools-devel 2>/dev/null || true
 
 if [ -z "$ref" ]; then
     ref="$(git ls-remote --tags --refs "$repo" 'mesa-*' | sed 's#.*refs/tags/##' \
