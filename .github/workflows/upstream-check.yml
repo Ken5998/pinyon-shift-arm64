@@ -1,0 +1,82 @@
+name: Upstream release check
+
+# Once a week: when arcanite24/pinyon-shift has a newer release than the one
+# in upstream.json, apply the patches to it and run the ARM64 CI. A green
+# build records the release in upstream.json; a red one opens an issue.
+
+on:
+  schedule:
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+  actions: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.latest.outputs.tag }}
+      new: ${{ steps.latest.outputs.new }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="$(gh release view --repo arcanite24/pinyon-shift --json tagName --jq .tagName)"
+          current="$(jq -r .tag upstream.json)"
+          echo "Latest upstream release $tag, last verified $current"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if [ "$tag" != "$current" ]; then echo "new=true"; else echo "new=false"; fi >> "$GITHUB_OUTPUT"
+      # GitHub disables scheduled workflows after 60 days without repository
+      # activity; enabling this one again on every run keeps it scheduled.
+      - name: Keep the schedule enabled
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/upstream-check.yml/enable" || true
+
+  build:
+    needs: check
+    if: needs.check.outputs.new == 'true'
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ needs.check.outputs.tag }}
+
+  record:
+    needs: [check, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Record the verified release
+        env:
+          TAG: ${{ needs.check.outputs.tag }}
+        run: |
+          commit="$(git ls-remote https://github.com/arcanite24/pinyon-shift "refs/tags/$TAG^{}" | cut -f1)"
+          [ -n "$commit" ] || commit="$(git ls-remote https://github.com/arcanite24/pinyon-shift "refs/tags/$TAG" | cut -f1)"
+          jq --arg tag "$TAG" --arg commit "$commit" --arg when "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '.tag = $tag | .commit = $commit | .verified_utc = $when' upstream.json > upstream.json.new
+          mv upstream.json.new upstream.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore: verify upstream $TAG on arm64"
+          git push
+
+  report:
+    needs: [check, build]
+    if: failure() && needs.check.outputs.new == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Open an issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.check.outputs.tag }}
+        run: |
+          title="ARM64 build fails on upstream $TAG"
+          existing="$(gh issue list --repo "${{ github.repository }}" --state open --search "in:title \"$title\"" --json number --jq 'length')"
+          if [ "$existing" = "0" ]; then
+            gh issue create --repo "${{ github.repository }}" --title "$title" \
+              --body "The weekly check could not build the ARM64 port on upstream release $TAG: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          fi

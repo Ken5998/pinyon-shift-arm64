@@ -1,0 +1,458 @@
+From 3a6bdc38a1cd2090d1820a7f4d602206b9079c2e Mon Sep 17 00:00:00 2001
+From: Ken5998 <46025606+Ken5998@users.noreply.github.com>
+Date: Tue, 13 Oct 2026 13:18:51 +0000
+Subject: [PATCH] feat(linux): build natively on arm64 linux handhelds
+
+ArmadaOS and other aarch64 Linux systems on Snapdragon handhelds
+had no build path: setup stopped at host_platform. ShiftGlue already
+has a linux-arm64 preset, so add the game's linux-arm64 presets, a
+toolchain file that uses the pinned LLVM 20.1.8 for ARM64 against the
+host's own headers (no Steam Runtime sysroot exists for ARM64), and
+setup support that provisions it, links a working ld.lld and names
+the Fedora packages to install when development files are missing.
+
+Tests: cross-built ShiftGlue and the host tests for aarch64-linux-gnu
+with LLVM 20.1.8; 11 of 11 host tests pass under qemu-aarch64
+---
+ .gitignore                         |  1 +
+ CMakePresets.json                  | 55 +++++++++++++++++
+ cmake/toolchains/linux-arm64.cmake | 51 ++++++++++++++++
+ config/release-toolchain.json      | 35 +++++++++++
+ docs/LINUX.md                      |  1 +
+ docs/LINUX_ARM64.md                | 96 ++++++++++++++++++++++++++++++
+ tools/pinyon_setup.py              | 73 ++++++++++++++++++++++-
+ 7 files changed, 310 insertions(+), 2 deletions(-)
+ create mode 100644 cmake/toolchains/linux-arm64.cmake
+ create mode 100644 docs/LINUX_ARM64.md
+
+diff --git a/.gitignore b/.gitignore
+index f8adf1f..725adfd 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -47,6 +47,7 @@ private/
+ !/docs/FEATURE_BACKLOG.md
+ !/docs/ANDROID.md
+ !/docs/LINUX.md
++!/docs/LINUX_ARM64.md
+ !/docs/MACOS.md
+ !/docs/android/
+ !/docs/android/*.json
+diff --git a/CMakePresets.json b/CMakePresets.json
+index 755f498..7c571a9 100644
+--- a/CMakePresets.json
++++ b/CMakePresets.json
+@@ -108,6 +108,49 @@
+         "CMAKE_BUILD_TYPE": "Release"
+       }
+     },
++    {
++      "name": "linux-arm64-base",
++      "hidden": true,
++      "generator": "Ninja",
++      "binaryDir": "${sourceDir}/out/build/${presetName}",
++      "toolchainFile": "${sourceDir}/cmake/toolchains/linux-arm64.cmake",
++      "cacheVariables": {
++        "PINYON_SHIFT_CPU_BASELINE": "armv8-a",
++        "REXSDK_DIR": "${sourceDir}/thirdparty/shiftglue-sdk",
++        "REXGLUE_USE_VULKAN": "ON",
++        "PINYON_SHIFT_GENERATED_ROOT": "${sourceDir}/.local/generated",
++        "PINYON_SHIFT_GENERATED_DIR": "${sourceDir}/.local/generated/default"
++      },
++      "condition": {
++        "type": "equals",
++        "lhs": "${hostSystemName}",
++        "rhs": "Linux"
++      }
++    },
++    {
++      "name": "linux-arm64-debug",
++      "displayName": "Linux ARM64 Debug",
++      "inherits": "linux-arm64-base",
++      "cacheVariables": {
++        "CMAKE_BUILD_TYPE": "Debug"
++      }
++    },
++    {
++      "name": "linux-arm64-relwithdebinfo",
++      "displayName": "Linux ARM64 RelWithDebInfo",
++      "inherits": "linux-arm64-base",
++      "cacheVariables": {
++        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
++      }
++    },
++    {
++      "name": "linux-arm64-release",
++      "displayName": "Linux ARM64 Release",
++      "inherits": "linux-arm64-base",
++      "cacheVariables": {
++        "CMAKE_BUILD_TYPE": "Release"
++      }
++    },
+     {
+       "name": "macos-base",
+       "hidden": true,
+@@ -238,6 +281,18 @@
+       "name": "linux-amd64-release",
+       "configurePreset": "linux-amd64-release"
+     },
++    {
++      "name": "linux-arm64-debug",
++      "configurePreset": "linux-arm64-debug"
++    },
++    {
++      "name": "linux-arm64-relwithdebinfo",
++      "configurePreset": "linux-arm64-relwithdebinfo"
++    },
++    {
++      "name": "linux-arm64-release",
++      "configurePreset": "linux-arm64-release"
++    },
+     {
+       "name": "macos-arm64-debug",
+       "configurePreset": "macos-arm64-debug"
+diff --git a/cmake/toolchains/linux-arm64.cmake b/cmake/toolchains/linux-arm64.cmake
+new file mode 100644
+index 0000000..0ba841e
+--- /dev/null
++++ b/cmake/toolchains/linux-arm64.cmake
+@@ -0,0 +1,51 @@
++# ARM64 Linux (aarch64) with the pinned LLVM against the build host's own
++# headers and libraries, for ARM handhelds such as the Retroid Pocket 6 or
++# the AYN Odin 2 running ArmadaOS, ROCKNIX-derived or other desktop Linux.
++#
++# There is no Steam Runtime sysroot for ARM64, so the host provides glibc,
++# libstdc++, X11 and Wayland development files. On an image-based system
++# (ArmadaOS, Fedora Atomic) build inside a distrobox of the same Fedora
++# release; the game then runs on the host (docs/LINUX_ARM64.md). libstdc++
++# is linked statically, as on x86-64, so a newer container GCC never needs a
++# newer host library.
++#
++# PINYON_LINUX_TOOLCHAIN (cache or environment) holds:
++#   llvm/          LLVM 20.1.8 for ARM64 Linux
++#   bin/ld.lld     setup's link to the linker that runs on this host
++set(CMAKE_SYSTEM_NAME Linux)
++set(CMAKE_SYSTEM_PROCESSOR aarch64)
++
++if(NOT PINYON_LINUX_TOOLCHAIN)
++  if(DEFINED ENV{PINYON_LINUX_TOOLCHAIN})
++    set(PINYON_LINUX_TOOLCHAIN "$ENV{PINYON_LINUX_TOOLCHAIN}")
++  else()
++    get_filename_component(_pinyon_root "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
++    set(PINYON_LINUX_TOOLCHAIN "${_pinyon_root}/.local/toolchain/linux-arm64")
++  endif()
++endif()
++set(PINYON_LINUX_TOOLCHAIN "${PINYON_LINUX_TOOLCHAIN}" CACHE PATH
++    "Pinned LLVM and linker link for ARM64 Linux builds")
++# try_compile projects reload this file without the cache.
++list(APPEND CMAKE_TRY_COMPILE_PLATFORM_VARIABLES PINYON_LINUX_TOOLCHAIN)
++
++set(_pinyon_llvm "${PINYON_LINUX_TOOLCHAIN}/llvm")
++set(CMAKE_C_COMPILER "${_pinyon_llvm}/bin/clang")
++set(CMAKE_CXX_COMPILER "${_pinyon_llvm}/bin/clang++")
++set(CMAKE_ASM_COMPILER "${CMAKE_C_COMPILER}")
++set(CMAKE_AR "${_pinyon_llvm}/bin/llvm-ar" CACHE FILEPATH "")
++set(CMAKE_RANLIB "${_pinyon_llvm}/bin/llvm-ranlib" CACHE FILEPATH "")
++foreach(_pinyon_lang C CXX ASM)
++  # Clang finds the distribution's GCC (aarch64-redhat-linux on Fedora,
++  # aarch64-linux-gnu on Debian) for this target on its own.
++  set(CMAKE_${_pinyon_lang}_COMPILER_TARGET aarch64-linux-gnu)
++endforeach()
++
++set(_pinyon_link "-fuse-ld=lld -static-libstdc++")
++# The LLVM release's ld.lld needs libxml2.so.2, which current distributions
++# no longer ship; setup links bin/ld.lld to one that runs here.
++if(EXISTS "${PINYON_LINUX_TOOLCHAIN}/bin/ld.lld")
++  string(APPEND _pinyon_link " --ld-path=${PINYON_LINUX_TOOLCHAIN}/bin/ld.lld")
++endif()
++set(CMAKE_EXE_LINKER_FLAGS_INIT "${_pinyon_link}")
++set(CMAKE_SHARED_LINKER_FLAGS_INIT "${_pinyon_link}")
++set(CMAKE_MODULE_LINKER_FLAGS_INIT "${_pinyon_link}")
+diff --git a/config/release-toolchain.json b/config/release-toolchain.json
+index 2371da5..9a3606c 100644
+--- a/config/release-toolchain.json
++++ b/config/release-toolchain.json
+@@ -113,6 +113,41 @@
+         "executable": "bin/python3"
+       }
+     },
++    "linux-arm64": {
++      "disk_space_gb": {
++        "first_build": 35,
++        "rebuild": 8
++      },
++      "cmake": {
++        "version": "3.31.10",
++        "url": "https://github.com/Kitware/CMake/releases/download/v3.31.10/cmake-3.31.10-linux-aarch64.tar.gz",
++        "sha256": "A343C6294F770742904E6A6792E0956B5FF8212ABFB63CAC99237DE2E210FA0F",
++        "install_path": ".local/toolchain/cmake-3.31.10-linux-aarch64",
++        "executable": "bin/cmake"
++      },
++      "ninja": {
++        "version": "1.13.2",
++        "url": "https://github.com/ninja-build/ninja/releases/download/v1.13.2/ninja-linux-aarch64.zip",
++        "sha256": "FD2CACC8050A7F12A16A2E48F9E06FCA5C14FC4C2BEE2BABB67B58BE17A607FC",
++        "install_path": ".local/toolchain/ninja-1.13.2-linux-aarch64",
++        "executable": "ninja",
++        "strip_top": false
++      },
++      "llvm": {
++        "version": "20.1.8",
++        "url": "https://github.com/llvm/llvm-project/releases/download/llvmorg-20.1.8/LLVM-20.1.8-Linux-ARM64.tar.xz",
++        "sha256": "B855CC17D935FDD83DA82206B7A7CFC680095EFD1E9E8182C4A05E761958BEF8",
++        "install_path": ".local/toolchain/llvm-20.1.8-linux-aarch64",
++        "executable": "bin/clang"
++      },
++      "python": {
++        "version": "3.13.16",
++        "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20261003/cpython-3.13.16%2B20261003-aarch64-unknown-linux-gnu-install_only.tar.gz",
++        "sha256": "6477121F22904963A066AC8FF89983BAAE781510815590E894DAA3C11CE86652",
++        "install_path": ".local/toolchain/python-3.13.16-linux-aarch64",
++        "executable": "bin/python3"
++      }
++    },
+     "macos-arm64": {
+       "disk_space_gb": {
+         "first_build": 20,
+diff --git a/docs/LINUX.md b/docs/LINUX.md
+index 5f268c6..6230d90 100644
+--- a/docs/LINUX.md
++++ b/docs/LINUX.md
+@@ -123,6 +123,7 @@ microSD card under `/run/media/`.
+ | Ubuntu 24.04 (WSL) | Release archive to a built game in 20 minutes; Add to Steam writes the shortcut and art; runs with a null GPU |
+ | Arch Linux (container, libxml2 2.15) | The pinned toolchain configures and links with setup's `ld.lld` wrapper (#472); a full build not run |
+ | Other distributions, NVIDIA, Intel | Not tested yet |
++| ARM64 handhelds (ArmadaOS) | Experimental native aarch64 build; see [ARM64 Linux handhelds](LINUX_ARM64.md) |
+ 
+ Work still open, such as DLC import and the title update build on Linux, is
+ tracked in the [Linux and Steam Deck backlog](LINUX_PORT_BACKLOG.md).
+diff --git a/docs/LINUX_ARM64.md b/docs/LINUX_ARM64.md
+new file mode 100644
+index 0000000..ca9cc73
+--- /dev/null
++++ b/docs/LINUX_ARM64.md
+@@ -0,0 +1,96 @@
++# ARM64 Linux handhelds (ArmadaOS)
++
++Pinyon Shift builds natively for ARM64 (aarch64) Linux: the same recompiled
++game as on x86-64 Linux, compiled for the handheld's own CPU and rendered with
++Mesa's Turnip Vulkan driver. Nothing runs through FEX or Box64. This page
++covers [ArmadaOS](https://armadaos.dev/) on Snapdragon handhelds such as the
++Retroid Pocket 6 (Snapdragon 8 Gen 2, Adreno 740); other Fedora-based or
++Debian-based ARM64 distributions work the same way.
++
++> **Status: experimental.** The ShiftGlue translator, runtime, GPU plugin and
++> the host tests cross-compile for aarch64-linux-gnu with the pinned LLVM
++> 20.1.8. A full game build and play session on a device has not been
++> recorded yet; the Android build on the same chips holds about 60 fps with
++> SMOOTH 60.
++
++## What you need
++
++- An ARM64 handheld with a Vulkan 1.3 driver (Mesa Turnip on Adreno 7xx).
++- 8 GB of memory or more; the build uses about 1.5 GB per compile job.
++- About 35 GB free for the first build.
++- Your ISO of the USA retail disc (`MS-2505`).
++
++There is no Steam Runtime sysroot for ARM64, so the build uses the system's
++own headers and libraries. ArmadaOS is image-based and ships without
++compilers, so the build runs inside a **distrobox** of the same Fedora
++release, and the game then runs on the host.
++
++## Build in a distrobox
++
++In Desktop Mode, open Konsole:
++
++```bash
++distrobox create --name pinyon --image registry.fedoraproject.org/fedora-toolbox:44
++distrobox enter pinyon
++```
++
++Inside the box, install the build dependencies (the same list setup prints if
++something is missing):
++
++```bash
++sudo dnf install -y gcc-c++ libstdc++-static glibc-devel lld git python3 \
++  pkgconf-pkg-config libX11-devel libxcb-devel libXext-devel libXcursor-devel \
++  libXi-devel libXrandr-devel libXScrnSaver-devel libXfixes-devel libXtst-devel \
++  libxkbcommon-devel wayland-devel wayland-protocols-devel libdecor-devel \
++  mesa-libEGL-devel mesa-libGL-devel mesa-libgbm-devel libdrm-devel \
++  alsa-lib-devel pulseaudio-libs-devel pipewire-devel systemd-devel dbus-devel
++```
++
++Then clone this repository into your home folder (the box shares it with the
++host) and build:
++
++```bash
++git clone --recurse-submodules https://github.com/arcanite24/pinyon-shift ~/PinyonShift
++cd ~/PinyonShift
++python3 tools/pinyon.py setup --iso ~/Downloads/forza-horizon.iso
++```
++
++`setup` downloads the pinned CMake, Ninja and LLVM 20.1.8 for ARM64 into
++`.local/toolchain`, links the distribution's `ld.lld` (the LLVM release's
++needs `libxml2.so.2`), reads and checks the disc, translates the game and
++builds `out/build/linux-arm64-release/pinyon_shift`. Keep the device on its
++charger. Pass `--jobs 4` if the box runs out of memory.
++
++## Play
++
++Leave the box (`exit`) and start the game on the host:
++
++```bash
++cd ~/PinyonShift
++python3 tools/pinyon.py launch
++```
++
++`python3 tools/pinyon.py shortcuts add`, also on the host, adds the game to
++the applications menu and to Steam as a non-Steam game for Gaming Mode.
++
++The libstdc++ is linked statically; the game needs only glibc, X11 or
++Wayland client libraries and the Vulkan driver from the host, which ArmadaOS
++has.
++
++## Settings for a Snapdragon 8 Gen 2
++
++The handheld presets of the Android build are not in the desktop settings
++menu. Start from **F6 > GRAPHICS > GRAPHICS PRESET > LOW-SPEC 60** at 1x, and
++set **SCENE SHADING > COARSE**. Android preallocates 256 MB of texture memory
++to avoid stalls on Adreno; the same works here:
++
++```bash
++python3 tools/pinyon.py launch -- --vulkan_texture_memory_prealloc_mb=256
++```
++
++## Not done yet
++
++- A prebuilt ARM64 launcher; the build runs from a terminal.
++- Measurements on a device (frame rate, memory, thermals).
++- Launching from Steam's Gaming Mode on ArmadaOS, where Steam itself runs
++  under FEX, has not been verified.
+diff --git a/tools/pinyon_setup.py b/tools/pinyon_setup.py
+index a0a91c4..ea78ef9 100644
+--- a/tools/pinyon_setup.py
++++ b/tools/pinyon_setup.py
+@@ -88,10 +88,12 @@ def host_platform() -> str:
+     machine = platform.machine().lower()
+     if sys.platform.startswith("linux") and machine in ("x86_64", "amd64"):
+         return "linux-x86_64"
++    if sys.platform.startswith("linux") and machine in ("aarch64", "arm64"):
++        return "linux-arm64"
+     if sys.platform == "darwin" and machine in ("arm64", "aarch64"):
+         return "macos-arm64"
+     raise SetupError(f"no build for {sys.platform} on {machine}: Pinyon Shift builds on "
+-                     "x86-64 Linux, Apple silicon Macs and Windows")
++                     "x86-64 and ARM64 Linux, Apple silicon Macs and Windows")
+ 
+ 
+ def toolchain_config() -> dict:
+@@ -334,6 +336,8 @@ def provision(progress: Progress, config: dict, name: str) -> dict:
+         found[key] = install / item["executable"] if item.get("executable") else install
+     if name == "linux-x86_64":
+         prepare_linux_toolchain(tools)
++    if name == "linux-arm64":
++        prepare_linux_arm64_toolchain(tools)
+     if name == "macos-arm64":
+         require_xcode_tools()
+     progress("tools", 100, "Toolchain ready")
+@@ -398,6 +402,61 @@ def prepare_host_wrappers(folder: Path, tools: dict) -> None:
+         wrapper.chmod(0o755)
+ 
+ 
++# What the ARM64 build needs from the host (there is no Steam Runtime sysroot
++# for ARM64): the C and C++ runtime, a linker and SDL's X11 and Wayland
++# headers. The pkg-config names, then the Fedora packages that provide them.
++ARM64_HOST_PACKAGES = (
++    "gcc-c++ libstdc++-static glibc-devel lld git python3 pkgconf-pkg-config "
++    "libX11-devel libxcb-devel libXext-devel libXcursor-devel libXi-devel "
++    "libXrandr-devel libXScrnSaver-devel libXfixes-devel libXtst-devel "
++    "libxkbcommon-devel wayland-devel wayland-protocols-devel libdecor-devel "
++    "mesa-libEGL-devel mesa-libGL-devel mesa-libgbm-devel libdrm-devel "
++    "alsa-lib-devel pulseaudio-libs-devel pipewire-devel systemd-devel dbus-devel")
++ARM64_PKG_CONFIG = ("x11-xcb", "wayland-client", "xkbcommon", "xcursor", "xi", "xrandr",
++                    "xscrnsaver", "xfixes", "xtst", "egl", "libdecor-0")
++
++
++def prepare_linux_arm64_toolchain(tools: dict) -> None:
++    """The layout cmake/toolchains/linux-arm64.cmake reads: llvm/ and
++    bin/ld.lld, a linker that runs on this host."""
++    folder = LOCAL / "toolchain" / "linux-arm64"
++    (folder / "bin").mkdir(parents=True, exist_ok=True)
++    llvm = folder / "llvm"
++    target = ROOT / tools["llvm"]["install_path"]
++    if llvm.is_symlink() or llvm.exists():
++        if not (llvm.is_symlink() and Path(os.readlink(str(llvm))) == target):
++            if llvm.is_symlink():
++                llvm.unlink()
++            else:
++                shutil.rmtree(llvm)
++    if not llvm.is_symlink():
++        os.symlink(str(target), str(llvm))
++    # The LLVM release's ld.lld links libxml2.so.2, which libxml2 2.14 and
++    # later no longer provide; the distribution's lld runs everywhere.
++    linker = None
++    for candidate in (shutil.which("ld.lld"), str(target / "bin" / "ld.lld")):
++        if candidate and subprocess.run([candidate, "--version"],
++                                        capture_output=True).returncode == 0:
++            linker = candidate
++            break
++    missing = [] if linker else ["ld.lld"]
++    for name in ("pkg-config", "git"):
++        if not shutil.which(name):
++            missing.append(name)
++    if shutil.which("pkg-config"):
++        missing += [module for module in ARM64_PKG_CONFIG
++                    if subprocess.run(["pkg-config", "--exists", module]).returncode]
++    if missing:
++        raise SetupError(
++            "the ARM64 build needs development files this system does not have ("
++            + ", ".join(missing) + "). On Fedora or in a Fedora distrobox install them with: "
++            "sudo dnf install " + ARM64_HOST_PACKAGES + " (docs/LINUX_ARM64.md)", "tools")
++    link = folder / "bin" / "ld.lld"
++    if link.is_symlink() or link.exists():
++        link.unlink()
++    os.symlink(linker, str(link))
++
++
+ def require_xcode_tools() -> None:
+     probe = subprocess.run(["xcode-select", "-p"], capture_output=True, text=True)
+     if probe.returncode or not shutil.which("clang++"):
+@@ -647,6 +706,8 @@ def prepare_shiftglue(progress: Progress, config: dict) -> Path:
+ PRESETS = {
+     "linux-x86_64": {"sdk": "linux-amd64", "game": "linux-amd64",
+                      "generator": "out/linux-amd64/Release/rexglue"},
++    "linux-arm64": {"sdk": "linux-arm64", "game": "linux-arm64",
++                    "generator": "out/linux-arm64/Release/rexglue"},
+     "macos-arm64": {"sdk": "mac-arm64", "game": "macos-arm64",
+                     "generator": "out/mac-arm64/Release/rexglue"},
+ }
+@@ -685,11 +746,14 @@ def build_environment(tools: dict) -> dict:
+     paths = [str(Path(tools[key]).parent) for key in ("cmake", "ninja") if key in tools]
+     environment["PATH"] = os.pathsep.join(paths + [environment.get("PATH", "")])
+     environment["SOURCE_DATE_EPOCH"] = SOURCE_DATE_EPOCH
+-    environment["PINYON_LINUX_TOOLCHAIN"] = str(LOCAL / "toolchain" / "linux-x86_64")
++    environment["PINYON_LINUX_TOOLCHAIN"] = str(LOCAL / "toolchain" / (
++        "linux-arm64" if host_platform() == "linux-arm64" else "linux-x86_64"))
+     return environment
+ 
+ 
+ def cpu_baseline(name: str) -> str:
++    if name == "linux-arm64":
++        return "armv8-a"
+     if name != "linux-x86_64":
+         return "native"
+     try:
+@@ -720,6 +784,11 @@ def build(progress: Progress, tools: dict, sdk: Path, python: Path, name: str,
+         toolchain = [f"-DCMAKE_TOOLCHAIN_FILE={ROOT / 'cmake/toolchains/linux-x86_64-sniper.cmake'}",
+                      f"-DCMAKE_C_COMPILER={llvm / 'clang'}",
+                      f"-DCMAKE_CXX_COMPILER={llvm / 'clang++'}"]
++    if name == "linux-arm64":
++        llvm = LOCAL / "toolchain" / "linux-arm64" / "llvm" / "bin"
++        toolchain = [f"-DCMAKE_TOOLCHAIN_FILE={ROOT / 'cmake/toolchains/linux-arm64.cmake'}",
++                     f"-DCMAKE_C_COMPILER={llvm / 'clang'}",
++                     f"-DCMAKE_CXX_COMPILER={llvm / 'clang++'}"]
+     generator = sdk / presets["generator"]
+     discard_unfinished_configure(sdk / "out" / "build" / presets["sdk"])
+     run_logged([cmake, "--preset", presets["sdk"], "-DREXGLUE_ENABLE_TRACY=OFF",
+-- 
+2.43.0
+

@@ -1,0 +1,50 @@
+name: ARM64 CI
+
+# Builds the ARM64 port of an upstream release on GitHub's ARM64 runner, in
+# the Fedora release ArmadaOS is built on: the pinned toolchain, the ShiftGlue
+# translator, the runtime, the GPU plugin and the host tests. No game files
+# are involved; the game itself is only ever built on the player's machine.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Upstream tag or commit (default the one in upstream.json)
+        required: false
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  host:
+    runs-on: ubuntu-24.04-arm
+    container: registry.fedoraproject.org/fedora:44
+    timeout-minutes: 150
+    steps:
+      - name: Install build dependencies
+        run: |
+          dnf install -y --setopt=install_weak_deps=False \
+            gcc-c++ libstdc++-static glibc-devel lld git python3 tar xz unzip \
+            pkgconf-pkg-config libX11-devel libxcb-devel libXext-devel libXcursor-devel \
+            libXi-devel libXrandr-devel libXScrnSaver-devel libXfixes-devel libXtst-devel \
+            libxkbcommon-devel wayland-devel wayland-protocols-devel libdecor-devel \
+            mesa-libEGL-devel mesa-libGL-devel mesa-libgbm-devel libdrm-devel \
+            alsa-lib-devel pulseaudio-libs-devel pipewire-devel systemd-devel dbus-devel
+      - uses: actions/checkout@v4
+      - name: Check out upstream and apply the patches
+        env:
+          REF: ${{ inputs.ref }}
+        run: scripts/prepare-source.sh "$RUNNER_TEMP/pinyon-shift" ${REF:+"$REF"}
+      - name: Build and test
+        run: scripts/ci-host.sh "$RUNNER_TEMP/pinyon-shift"
+      - name: Disk usage
+        if: always()
+        run: df -h "$RUNNER_TEMP" || true
