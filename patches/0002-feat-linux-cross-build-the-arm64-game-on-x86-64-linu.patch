@@ -1,0 +1,302 @@
+From 29446584a55a0d34a49d5a7a710502dd679ea2fe Mon Sep 17 00:00:00 2001
+From: Ken5998 <46025606+Ken5998@users.noreply.github.com>
+Date: Tue, 13 Oct 2026 13:48:24 +0000
+Subject: [PATCH 2/2] feat(linux): cross-build the arm64 game on x86-64 linux
+
+A handheld is a poor place for a 30 GB build. setup --target
+linux-arm64 on x86-64 Debian or Ubuntu (WSL included) builds the
+translator for the PC and the game for aarch64 with the pinned x86-64
+LLVM against the distribution's arm64 multiarch packages and aarch64
+cross GCC, then names the packages to install when they are missing.
+Built against glibc 2.39, the game runs on Fedora 44 based ArmadaOS.
+
+Tests: cross-built the host tests and GPU plugin through the setup
+toolchain layout on Ubuntu 24.04; 11 of 11 pass under qemu-aarch64
+---
+ cmake/toolchains/linux-arm64.cmake | 12 ++++
+ docs/LINUX_ARM64.md                | 44 ++++++++++++--
+ tools/pinyon_setup.py              | 93 +++++++++++++++++++++++++-----
+ 3 files changed, 131 insertions(+), 18 deletions(-)
+
+diff --git a/cmake/toolchains/linux-arm64.cmake b/cmake/toolchains/linux-arm64.cmake
+index 0ba841e..fbbbf79 100644
+--- a/cmake/toolchains/linux-arm64.cmake
++++ b/cmake/toolchains/linux-arm64.cmake
+@@ -49,3 +49,15 @@ endif()
+ set(CMAKE_EXE_LINKER_FLAGS_INIT "${_pinyon_link}")
+ set(CMAKE_SHARED_LINKER_FLAGS_INIT "${_pinyon_link}")
+ set(CMAKE_MODULE_LINKER_FLAGS_INIT "${_pinyon_link}")
++
++# On an x86-64 Debian or Ubuntu host (WSL included) the target's libraries
++# are the distribution's arm64 multiarch packages beside the host's, and its
++# C++ runtime the aarch64 cross GCC's, which clang finds for this target.
++# Built against Ubuntu 24.04 (glibc 2.39), the game runs on newer systems
++# such as Fedora 44.
++if(NOT CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "aarch64|arm64|ARM64")
++  set(CMAKE_LIBRARY_ARCHITECTURE aarch64-linux-gnu)
++  set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
++  set(ENV{PKG_CONFIG_LIBDIR} "/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig")
++  set(ENV{PKG_CONFIG_PATH} "")
++endif()
+diff --git a/docs/LINUX_ARM64.md b/docs/LINUX_ARM64.md
+index ca9cc73..939b6e7 100644
+--- a/docs/LINUX_ARM64.md
++++ b/docs/LINUX_ARM64.md
+@@ -8,10 +8,10 @@ Retroid Pocket 6 (Snapdragon 8 Gen 2, Adreno 740); other Fedora-based or
+ Debian-based ARM64 distributions work the same way.
+ 
+ > **Status: experimental.** The ShiftGlue translator, runtime, GPU plugin and
+-> the host tests cross-compile for aarch64-linux-gnu with the pinned LLVM
+-> 20.1.8. A full game build and play session on a device has not been
+-> recorded yet; the Android build on the same chips holds about 60 fps with
+-> SMOOTH 60.
++> the host tests build for aarch64-linux-gnu with the pinned LLVM 20.1.8, on
++> an ARM64 machine and cross-compiled from x86-64, and the host tests pass.
++> A full game build and play session on a device has not been recorded yet;
++> the Android build on the same chips holds about 60 fps with SMOOTH 60.
+ 
+ ## What you need
+ 
+@@ -61,9 +61,43 @@ needs `libxml2.so.2`), reads and checks the disc, translates the game and
+ builds `out/build/linux-arm64-release/pinyon_shift`. Keep the device on its
+ charger. Pass `--jobs 4` if the box runs out of memory.
+ 
++## Or build on an x86-64 PC
++
++The handheld does not need the build tools at all: an x86-64 Ubuntu 24.04
++machine, WSL on Windows included, cross-compiles the game for it. The
++translator runs on the PC, and the game is compiled for aarch64 with the
++pinned LLVM against Ubuntu's arm64 packages. Built against glibc 2.39, it
++runs on ArmadaOS and other newer systems.
++
++Once, enable the arm64 packages and install the cross compiler:
++
++```bash
++sudo dpkg --add-architecture arm64
++# Pin the existing sources to amd64 (add "Architectures: amd64" to each
++# entry in /etc/apt/sources.list.d/ubuntu.sources), then add
++# http://ports.ubuntu.com/ubuntu-ports for arm64 and run apt update.
++sudo apt install g++-14-aarch64-linux-gnu libwayland-bin wayland-protocols pkg-config \
++  libx11-dev:arm64 libx11-xcb-dev:arm64 libxcb1-dev:arm64 libxext-dev:arm64 \
++  libxcursor-dev:arm64 libxi-dev:arm64 libxrandr-dev:arm64 libxss-dev:arm64 \
++  libxfixes-dev:arm64 libxtst-dev:arm64 libxkbcommon-dev:arm64 libwayland-dev:arm64 \
++  libdecor-0-dev:arm64 libegl-dev:arm64 libgl-dev:arm64 libgles-dev:arm64 \
++  libdrm-dev:arm64 libgbm-dev:arm64 libasound2-dev:arm64 libpulse-dev:arm64 \
++  libpipewire-0.3-dev:arm64 libudev-dev:arm64 libdbus-1-dev:arm64
++```
++
++Then build with `--target linux-arm64`:
++
++```bash
++python3 tools/pinyon.py setup --iso ~/forza-horizon.iso --target linux-arm64
++```
++
++The game is in `out/build/linux-arm64-release`. Copy the source tree's
++tracked files, `.local/game` and the programs and libraries of that folder to
++the handheld (for example with `rsync`), then play as below.
++
+ ## Play
+ 
+-Leave the box (`exit`) and start the game on the host:
++On the handheld, outside any distrobox, start the game:
+ 
+ ```bash
+ cd ~/PinyonShift
+diff --git a/tools/pinyon_setup.py b/tools/pinyon_setup.py
+index ea78ef9..efb1e6c 100644
+--- a/tools/pinyon_setup.py
++++ b/tools/pinyon_setup.py
+@@ -10,6 +10,7 @@ translates the game and builds it, then records that the install is ready.
+   pinyon.py setup --build-only              rebuild from the extracted game
+   pinyon.py setup --verify-only --iso FILE  check a disc image and stop
+   pinyon.py setup --tools-only              provision the toolchain and stop
++  pinyon.py setup --target linux-arm64 ...  on x86-64 Linux, build for ARM64 Linux
+ 
+ With --json every step prints a `::pinyon::{"stage", "percent", "message"}`
+ line, the same protocol the launchers read from setup-preview.ps1.
+@@ -457,6 +458,58 @@ def prepare_linux_arm64_toolchain(tools: dict) -> None:
+     os.symlink(linker, str(link))
+ 
+ 
++# On an x86-64 Debian or Ubuntu host (WSL included), the ARM64 build uses the
++# distribution's aarch64 cross GCC and its multiarch arm64 libraries.
++ARM64_CROSS_PACKAGES = (
++    "g++-14-aarch64-linux-gnu libwayland-bin wayland-protocols pkg-config "
++    + " ".join(f"{package}:arm64" for package in (
++        "libx11-dev", "libx11-xcb-dev", "libxcb1-dev", "libxext-dev", "libxcursor-dev",
++        "libxi-dev", "libxrandr-dev", "libxss-dev", "libxfixes-dev", "libxtst-dev",
++        "libxkbcommon-dev", "libwayland-dev", "libdecor-0-dev", "libegl-dev", "libgl-dev",
++        "libgles-dev", "libdrm-dev", "libgbm-dev", "libasound2-dev", "libpulse-dev",
++        "libpipewire-0.3-dev", "libudev-dev", "libdbus-1-dev")))
++ARM64_CROSS_PKG_CONFIG_LIBDIR = "/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig"
++
++
++def toolchain_folder(target: str) -> Path:
++    """What PINYON_LINUX_TOOLCHAIN names for a build of target on this host."""
++    if target == "linux-arm64" and host_platform() == "linux-x86_64":
++        return LOCAL / "toolchain" / "linux-arm64-cross"
++    return LOCAL / "toolchain" / target
++
++
++def prepare_linux_arm64_cross_toolchain(tools: dict) -> None:
++    """The layout cmake/toolchains/linux-arm64.cmake reads on an x86-64 host:
++    llvm/ is the pinned x86-64 LLVM, which targets aarch64 as well, and
++    bin/ld.lld its linker wrapper from the x86-64 toolchain."""
++    folder = toolchain_folder("linux-arm64")
++    (folder / "bin").mkdir(parents=True, exist_ok=True)
++    for link, target in (("llvm", ROOT / tools["llvm"]["install_path"]),
++                         ("bin/ld.lld", LOCAL / "toolchain" / "linux-x86_64" / "bin" / "ld.lld")):
++        path = folder / link
++        if path.is_symlink() or path.exists():
++            path.unlink()
++        os.symlink(str(target), str(path))
++    missing = []
++    if not Path("/usr/lib/gcc-cross/aarch64-linux-gnu").is_dir():
++        missing.append("the aarch64 cross GCC")
++    for name in ("pkg-config", "wayland-scanner"):
++        if not shutil.which(name):
++            missing.append(name)
++    if shutil.which("pkg-config"):
++        environment = dict(os.environ, PKG_CONFIG_LIBDIR=ARM64_CROSS_PKG_CONFIG_LIBDIR,
++                           PKG_CONFIG_PATH="")
++        missing += [f"{module} (arm64)" for module in ARM64_PKG_CONFIG
++                    if subprocess.run(["pkg-config", "--exists", module],
++                                      env=environment).returncode]
++    if missing:
++        raise SetupError(
++            "building for ARM64 on this PC needs the aarch64 cross compiler and arm64 "
++            "development files (" + ", ".join(missing) + "). On Ubuntu or Debian, add the "
++            "arm64 architecture (docs/LINUX_ARM64.md) and install: sudo apt install "
++            + ARM64_CROSS_PACKAGES, "tools")
++
++
+ def require_xcode_tools() -> None:
+     probe = subprocess.run(["xcode-select", "-p"], capture_output=True, text=True)
+     if probe.returncode or not shutil.which("clang++"):
+@@ -741,13 +794,12 @@ def run_logged(command: list, log: Path, progress: Progress, stage: str, start:
+     progress(stage, end, message)
+ 
+ 
+-def build_environment(tools: dict) -> dict:
++def build_environment(tools: dict, target: str) -> dict:
+     environment = dict(os.environ)
+     paths = [str(Path(tools[key]).parent) for key in ("cmake", "ninja") if key in tools]
+     environment["PATH"] = os.pathsep.join(paths + [environment.get("PATH", "")])
+     environment["SOURCE_DATE_EPOCH"] = SOURCE_DATE_EPOCH
+-    environment["PINYON_LINUX_TOOLCHAIN"] = str(LOCAL / "toolchain" / (
+-        "linux-arm64" if host_platform() == "linux-arm64" else "linux-x86_64"))
++    environment["PINYON_LINUX_TOOLCHAIN"] = str(toolchain_folder(target))
+     return environment
+ 
+ 
+@@ -772,9 +824,12 @@ def discard_unfinished_configure(directory: Path) -> None:
+ 
+ 
+ def build(progress: Progress, tools: dict, sdk: Path, python: Path, name: str,
+-          jobs: int, configuration: str = "Release") -> Path:
++          jobs: int, configuration: str = "Release", target: str = "") -> Path:
++    """The translator is built for this host (name), the game for target,
++    which differs from name only for ARM64 built on x86-64 Linux."""
++    target = target or name
+     presets = PRESETS[name]
+-    environment = build_environment(tools)
++    environment = build_environment(tools, name)
+     cmake = str(tools["cmake"])
+     toolchain = []
+     if name == "linux-x86_64":
+@@ -817,8 +872,9 @@ def build(progress: Progress, tools: dict, sdk: Path, python: Path, name: str,
+             raise SetupError("the translation reported unexpected warnings; see "
+                              f"{LOGS / 'codegen.log'}\n{check.stdout}{check.stderr}", "build")
+ 
+-    preset = f"{presets['game']}-{configuration.lower()}"
+-    baseline = cpu_baseline(name)
++    preset = f"{PRESETS[target]['game']}-{configuration.lower()}"
++    environment = build_environment(tools, target)
++    baseline = cpu_baseline(target)
+     flags = []
+     if baseline == "fma":
+         flags = ["-DPINYON_SHIFT_CPU_BASELINE=fma",
+@@ -836,7 +892,7 @@ def build(progress: Progress, tools: dict, sdk: Path, python: Path, name: str,
+     executable = directory / "pinyon_shift"
+     if not executable.is_file():
+         raise SetupError(f"the build finished without {executable}", "build")
+-    write_provenance(directory, executable, sdk, configuration, baseline)
++    write_provenance(directory, executable, sdk, configuration, baseline, target)
+     controller_db = ROOT / "config" / "gamecontrollerdb.txt"
+     if controller_db.is_file():
+         shutil.copyfile(str(controller_db), str(directory / "gamecontrollerdb.txt"))
+@@ -850,7 +906,7 @@ def git_output(*arguments: str, cwd: Path = ROOT) -> str:
+ 
+ 
+ def write_provenance(directory: Path, executable: Path, sdk: Path, configuration: str,
+-                     baseline: str) -> None:
++                     baseline: str, target: str) -> None:
+     payload = ROOT / ".pinyon-source-sha256"
+     record = {
+         "schema_version": 3,
+@@ -860,7 +916,7 @@ def write_provenance(directory: Path, executable: Path, sdk: Path, configuration
+         "executable": str(executable.relative_to(ROOT)),
+         "executable_sha256": sha256_file(executable),
+         "generated_locally": True,
+-        "platform": host_platform(),
++        "platform": target,
+         "pinyon_shift_commit": git_output("rev-parse", "HEAD"),
+         "pinyon_shift_dirty": bool(git_output("status", "--porcelain", "--untracked-files=no")),
+         "pinyon_shift_source_payload_sha256": (payload.read_text(encoding="ascii").strip()
+@@ -903,6 +959,10 @@ def setup(args: argparse.Namespace) -> int:
+ def run_setup(args: argparse.Namespace) -> int:
+     progress = Progress(args.json)
+     name = host_platform()
++    target = args.target or name
++    if target not in (name, "linux-arm64") or (target != name and name != "linux-x86_64"):
++        raise SetupError(f"{name} cannot build for {target}; ARM64 Linux builds on x86-64 "
++                         "Linux or on ARM64 Linux", "setup")
+     config = toolchain_config()
+     LOGS.mkdir(parents=True, exist_ok=True)
+     error_file = LOGS / "setup-error.json"
+@@ -922,7 +982,9 @@ def run_setup(args: argparse.Namespace) -> int:
+                 raise SetupError(f"{remaining:.0f} GB of free space is needed to finish the "
+                                  f"first build ({free_space_gb(LOCAL):.0f} GB free)", "verify")
+         if args.tools_only:
+-            provision(progress, config, name)
++            tools = provision(progress, config, name)
++            if target != name:
++                prepare_linux_arm64_cross_toolchain(platform_tools(config, name))
+             prepare_shiftglue(progress, config)
+             return 0
+         dump = None
+@@ -952,9 +1014,11 @@ def run_setup(args: argparse.Namespace) -> int:
+         elif not game_ready():
+             raise SetupError("choose your disc image (--iso) first", "verify")
+         tools = provision(progress, config, name)
++        if target != name:
++            prepare_linux_arm64_cross_toolchain(platform_tools(config, name))
+         sdk = prepare_shiftglue(progress, config)
+         jobs = args.jobs or job_count()
+-        build(progress, tools, sdk, python, name, jobs, args.configuration)
++        build(progress, tools, sdk, python, name, jobs, args.configuration, target)
+         if dump is None:
+             dump, _ = load_catalog()
+         state = {
+@@ -964,7 +1028,7 @@ def run_setup(args: argparse.Namespace) -> int:
+             "source_kind": source_kind or "existing",
+             "iso_sha256": None,
+             "verified_by": "extracted-file-catalog",
+-            "platform": name,
++            "platform": target,
+             "result": "ready",
+         }
+         (LOCAL / "setup-state.json").write_text(json.dumps(state, indent=2) + "\n",
+@@ -995,6 +1059,9 @@ def add_parser(commands) -> None:
+     parser.add_argument("--configuration", choices=("Release", "RelWithDebInfo"),
+                         default="Release")
+     parser.add_argument("--jobs", type=int, help="parallel compile jobs")
++    parser.add_argument("--target", choices=("linux-arm64",),
++                        help="build the game for another platform (ARM64 Linux from x86-64 "
++                             "Linux); the default is this machine")
+     parser.add_argument("--json", action="store_true", help="print ::pinyon:: progress events")
+ 
+ 
+-- 
+2.43.0
+
