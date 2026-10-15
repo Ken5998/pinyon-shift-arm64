@@ -27,6 +27,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - name: Check that a sysroot is published
         run: |
           if [ ! -f sysroot.json ]; then
@@ -53,7 +55,10 @@ jobs:
           upstream="${REF:-$(jq -r .tag upstream.json)}"
           sysroot="$(jq -r .version sysroot.json)"
           sha256="$(sha256sum "$archive" | cut -d' ' -f1)"
-          cat > notes.md <<NOTES
+          scripts/release-notes.sh "v$version" > notes.md
+          cat >> notes.md <<NOTES
+          ## Install
+
           Pinyon Shift $version ([upstream $upstream](https://github.com/arcanite24/pinyon-shift/releases/tag/$upstream)) for ARM64 Linux handhelds, such as the Retroid Pocket 6 on ArmadaOS.
 
           On the device, in Desktop Mode: unpack PinyonShift-Launcher-linux-arm64.tar.gz, start PinyonShift/PinyonShiftLauncher and choose your own ISO of the USA retail disc. The launcher downloads its build tools and the ARM64 sysroot $sysroot, builds the game on the device (about 35 GB free; keep it on the charger) and starts it. It needs git and Python 3.11 or newer on the device. The launcher offers the next release when one is published here.
@@ -62,6 +67,7 @@ jobs:
           NOTES
           if gh release view "v$version" > /dev/null 2>&1; then
             gh release upload "v$version" "$archive" --clobber
+            gh release edit "v$version" --notes-file notes.md
           else
             gh release create "v$version" "$archive" --title "Pinyon Shift $version for ARM64 Linux" \
               --notes-file notes.md
