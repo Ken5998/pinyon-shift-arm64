@@ -67,6 +67,26 @@ Adreno defaults too.
 The game always draws at 1280×720 or more: a smaller window does not make it
 faster.
 
+## If MangoHud or the Steam overlay flickers
+
+On the Retroid Pocket 6, MangoHud, the Steam overlay and the Quick Access
+menu can flicker and break into blocks while the game itself looks fine (with
+Force Composite on, the whole screen does). The kernel lets gamescope
+interrupt the game's GPU work to draw them (GPU preemption), and on this
+Adreno 740 the interruption corrupts what gamescope draws. Turning preemption
+off fixes it without costing frame rate. In Desktop Mode, open Konsole and
+run:
+
+```bash
+sudo rpm-ostree kargs --append=msm.enable_preemption=0
+```
+
+then restart. `sudo cat /sys/module/msm/parameters/enable_preemption` shows
+`0` afterwards. To undo it, run
+`sudo rpm-ostree kargs --delete=msm.enable_preemption=0` and restart.
+`TU_DEBUG=noubwc %command%` in the launch options hides the flicker too, but
+slows the game down.
+
 ## If something goes wrong
 
 The launcher shows which step failed. Its **Logs** link opens the build or
