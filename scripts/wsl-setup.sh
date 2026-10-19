@@ -31,6 +31,18 @@ Architectures: arm64
 Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
 SOURCES
 
+# arm64 and amd64 copies of a library must have the same version, and ports
+# carries security updates as soon as they are out. A mirror (Azure's, on
+# GitHub's runners) can lag behind it, so amd64 takes them from the source.
+sudo tee /etc/apt/sources.list.d/ubuntu-security-amd64.sources > /dev/null <<SOURCES
+Types: deb
+URIs: http://security.ubuntu.com/ubuntu
+Suites: $codename-security
+Components: main universe
+Architectures: amd64
+Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+SOURCES
+
 sudo apt-get update
 arm64=(libx11-dev libx11-xcb-dev libxcb1-dev libxext-dev libxcursor-dev libxi-dev
        libxrandr-dev libxss-dev libxfixes-dev libxtst-dev libxkbcommon-dev libwayland-dev
