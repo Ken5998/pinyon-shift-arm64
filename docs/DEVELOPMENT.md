@@ -26,10 +26,10 @@ forbids distributing the disc, the generated translation or the binary.
 
 ## How a release is made
 
-1. `ci.yml` builds the ARM64 sysroot, then the translator, runtime, GPU plugin
-   and the 11 host tests for aarch64 with the pinned LLVM: natively against
-   the sysroot in a bare Fedora 44 (the base of ArmadaOS), and cross-compiled
-   on x86-64. It also packages the launcher.
+1. `ci.yml` builds the ARM64 sysroot, then the translator, runtime, GPU
+   plugin, FidelityFX library and the 11 host tests for aarch64 with the
+   pinned LLVM: natively against the sysroot in a bare Fedora 44 (the base of
+   ArmadaOS), and cross-compiled on x86-64. It also packages the launcher.
 2. `sysroot.yml`, run by hand when the sysroot changes, publishes it as
    release `sysroot-VERSION` and pins it in `sysroot.json`.
 3. `release.yml` publishes the launcher for the upstream release in

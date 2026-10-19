@@ -60,6 +60,20 @@ cmake --build "$build" --target pinyon_shift_host_tests rexgpu-fh1 --parallel "$
 echo "::endgroup::"
 
 file "$build/rexglue-artifacts/librexgpu-fh1.so" | grep -q 'ARM aarch64'
+
+# The game build configures the FidelityFX library as its own project and
+# passes it only the compilers; it takes the toolchain from the environment
+# setup gives the build (patch 0008).
+echo "::group::FidelityFX library"
+ffx="$src/out/build/ci-fidelityfx"
+toolchain_file="$(python3 -c 'import sys; sys.path.insert(0, "tools"); import pinyon_setup
+print(pinyon_setup.build_environment({}, "linux-arm64")["CMAKE_TOOLCHAIN_FILE"])')"
+CMAKE_TOOLCHAIN_FILE="$toolchain_file" cmake -S "$sdk/thirdparty/fidelityfx-vk" -B "$ffx" -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release "-DCMAKE_C_COMPILER=$PINYON_LINUX_TOOLCHAIN/llvm/bin/clang" \
+    "-DCMAKE_CXX_COMPILER=$PINYON_LINUX_TOOLCHAIN/llvm/bin/clang++"
+cmake --build "$ffx" --target amd_fidelityfx_vk --parallel "$jobs"
+echo "::endgroup::"
+file -L "$ffx/ffx-api/libamd_fidelityfx_vk.so" | grep -q 'ARM aarch64'
 failed=()
 for test in pinyon_shift_fh1_ui_api_tests pinyon_shift_hostui_tests \
         pinyon_shift_host_config_tests pinyon_shift_profile_body_tests \
