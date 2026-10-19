@@ -1,7 +1,7 @@
-From 9c4f50946a2222ffb21a47ff098b19d6b8613df1 Mon Sep 17 00:00:00 2001
+From 1e8ccddedaff1d2043d7244e1e042760d54d523e Mon Sep 17 00:00:00 2001
 From: Ken5998 <46025606+Ken5998@users.noreply.github.com>
 Date: Tue, 13 Oct 2026 15:10:34 +0000
-Subject: [PATCH 4/4] feat(launcher): package and run the linux launcher on
+Subject: [PATCH 4/7] feat(launcher): package and run the linux launcher on
  arm64
 
 The desktop launcher picks the linux-arm64 setup platform and build
@@ -11,13 +11,14 @@ archive, and package-launcher.py publishes that archive with
 ---
  docs/LINUX_ARM64.md                           | 20 ++++++++++++++----
  .../Installation.cs                           |  6 ++++--
- .../MainWindow.axaml.cs                       |  3 ++-
+ .../MainWindow.axaml.cs                       |  5 +++--
  launcher/Shared/LauncherUpdate.cs             |  4 +++-
  tools/package-launcher.py                     | 21 ++++++++++++-------
- 5 files changed, 39 insertions(+), 15 deletions(-)
+ tools/tests/test_release_contract.py          |  4 ++++
+ 6 files changed, 44 insertions(+), 16 deletions(-)
 
 diff --git a/docs/LINUX_ARM64.md b/docs/LINUX_ARM64.md
-index 939b6e7..5834e52 100644
+index 939b6e7b..5834e52f 100644
 --- a/docs/LINUX_ARM64.md
 +++ b/docs/LINUX_ARM64.md
 @@ -20,11 +20,24 @@ Debian-based ARM64 distributions work the same way.
@@ -57,45 +58,51 @@ index 939b6e7..5834e52 100644
  - Launching from Steam's Gaming Mode on ArmadaOS, where Steam itself runs
    under FEX, has not been verified.
 diff --git a/launcher/PinyonShift.Launcher.Desktop/Installation.cs b/launcher/PinyonShift.Launcher.Desktop/Installation.cs
-index f54fd85..5b00ecf 100644
+index 192abbe4..12c237b8 100644
 --- a/launcher/PinyonShift.Launcher.Desktop/Installation.cs
 +++ b/launcher/PinyonShift.Launcher.Desktop/Installation.cs
-@@ -22,15 +22,17 @@ public sealed class Installation
-     public string Executable => Path.Combine(BuildDirectory, "pinyon_shift");
-     public static bool IsLinux => RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
+@@ -57,17 +57,19 @@ public sealed class Installation
      public static bool IsMac => RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
+     // Windows keeps the WPF launcher; this one runs there for development.
+     public static bool IsWindows => RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
 +    /// <summary>An ARM64 Linux handheld (docs/LINUX_ARM64.md).</summary>
 +    public static bool IsArm64 => RuntimeInformation.OSArchitecture == Architecture.Arm64;
+     private static string ExeSuffix => IsWindows ? ".exe" : "";
      public static string Version =>
          typeof(Installation).Assembly.GetName().Version?.ToString(3) ?? "dev";
  
--    private string Preset => IsMac ? "macos-arm64" : "linux-amd64";
-+    private string Preset => IsMac ? "macos-arm64" : IsArm64 ? "linux-arm64" : "linux-amd64";
+-    private static string Preset => IsMac ? "macos-arm64" : IsWindows ? "win-amd64" : "linux-amd64";
++    private static string Preset => IsMac ? "macos-arm64" : IsWindows ? "win-amd64" : IsArm64 ? "linux-arm64" : "linux-amd64";
  
-     private Installation(string root)
+     private Installation(string root, bool checkout)
      {
          Root = root;
--        Platform = IsMac ? "macos-arm64" : "linux-x86_64";
-+        Platform = IsMac ? "macos-arm64" : IsArm64 ? "linux-arm64" : "linux-x86_64";
-     }
- 
-     private static bool IsSourceRoot(string path) =>
+         IsCheckout = checkout;
+-        Platform = IsMac ? "macos-arm64" : IsWindows ? "windows-x86_64" : "linux-x86_64";
++        Platform = IsMac ? "macos-arm64" : IsWindows ? "windows-x86_64" : IsArm64 ? "linux-arm64" : "linux-x86_64";
+         // As the Windows launcher (ResolveStateRoot), an override for testing;
+         // a portable install has dropped it from the environment.
+         StateRoot = FromEnvironment("PINYON_SHIFT_STATE_ROOT") ?? Path.Combine(root, ".local", "preview");
 diff --git a/launcher/PinyonShift.Launcher.Desktop/MainWindow.axaml.cs b/launcher/PinyonShift.Launcher.Desktop/MainWindow.axaml.cs
-index c5e6770..6078fdf 100644
+index 95a95a02..315b198f 100644
 --- a/launcher/PinyonShift.Launcher.Desktop/MainWindow.axaml.cs
 +++ b/launcher/PinyonShift.Launcher.Desktop/MainWindow.axaml.cs
-@@ -45,7 +45,8 @@ public partial class MainWindow : Window
-         }
-         _ = StartUpdateCheckAsync();
-         InstallText.Text = $"Installs to {_installation.Root}. The build needs about "
--            + (Installation.IsMac ? "20" : "45") + " GB free and takes 20 to 60 minutes.";
-+            + (Installation.IsMac ? "20" : Installation.IsArm64 ? "35" : "45") + " GB free and takes 20 to 60 minutes"
-+            + (Installation.IsArm64 ? ", longer on a handheld." : ".");
-         if (!Installation.HasAppleDeveloperTools())
-         {
-             AppleToolsPanel.IsVisible = true;
+@@ -92,10 +92,11 @@ public partial class MainWindow : Window
+     private void ShowInstallLocation()
+     {
+         if (_installation is null) return;
+-        var size = Installation.IsMac ? "20" : "45";
++        var size = Installation.IsMac ? "20" : Installation.IsArm64 ? "35" : "45";
+         InstallText.Text = Installation.PortableRequested
+             ? $"Portable: {Installation.PortableRoot}. Everything stays in this folder. The build needs about {size} GB free."
+-            : $"Installs to {_installation.Root}. The build needs about {size} GB free and takes 20 to 60 minutes.";
++            : $"Installs to {_installation.Root}. The build needs about {size} GB free and takes 20 to 60 minutes"
++                + (Installation.IsArm64 ? ", longer on a handheld." : ".");
+         ChooseInstallRootButton.IsVisible = _installation.CanChooseInstallRoot;
+     }
+ 
 diff --git a/launcher/Shared/LauncherUpdate.cs b/launcher/Shared/LauncherUpdate.cs
-index b35fa99..5fa1bfd 100644
+index b35fa991..5fa1bfd0 100644
 --- a/launcher/Shared/LauncherUpdate.cs
 +++ b/launcher/Shared/LauncherUpdate.cs
 @@ -95,6 +95,7 @@ public static class LauncherUpdate
@@ -117,7 +124,7 @@ index b35fa99..5fa1bfd 100644
      /// <summary>False when PINYON_SHIFT_UPDATE_CHECK is 0, false or off.</summary>
      public static bool CheckEnabled =>
 diff --git a/tools/package-launcher.py b/tools/package-launcher.py
-index 253cd08..34412d5 100644
+index 253cd08b..34412d53 100644
 --- a/tools/package-launcher.py
 +++ b/tools/package-launcher.py
 @@ -2,6 +2,7 @@
@@ -177,3 +184,21 @@ index 253cd08..34412d5 100644
      print(release)
      return 0
  
+diff --git a/tools/tests/test_release_contract.py b/tools/tests/test_release_contract.py
+index 0250c176..c1135802 100644
+--- a/tools/tests/test_release_contract.py
++++ b/tools/tests/test_release_contract.py
+@@ -122,6 +122,10 @@ if ((Get-PinyonVisualStudioRoot) -ne 'compatible-vs2022') { throw 'Supported too
+         workflow = (ROOT / ".github/workflows/release.yml").read_text()
+         updater = (ROOT / "launcher/Shared/LauncherUpdate.cs").read_text(encoding="utf-8")
+         assets = dict(re.findall(r'public const string (\w+Asset) = "([^"]+)";', updater))
++        # The ARM64 Linux launcher is published by the pinyon-shift-arm64
++        # overlay's own release workflow, not this one.
++        arm64 = assets.pop("LinuxArm64Asset", None)
++        self.assertEqual(arm64, "PinyonShift-Launcher-linux-arm64.tar.gz")
+         self.assertEqual(set(assets), {"WindowsAsset", "LinuxAsset", "MacAsset"})
+         for asset in assets.values():
+             self.assertIn(f".artifacts/{asset}", workflow)
+-- 
+2.43.0
+

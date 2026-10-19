@@ -1,7 +1,7 @@
-From eabbecfc153ae78298bdfa8a2517aabe692d1b0b Mon Sep 17 00:00:00 2001
+From 9704dcc8bd033518134920062a0c626b7a7683b8 Mon Sep 17 00:00:00 2001
 From: Ken5998 <46025606+Ken5998@users.noreply.github.com>
 Date: Tue, 13 Oct 2026 19:54:58 +0000
-Subject: [PATCH] fix(config): add the new-file settings a config lacks at
+Subject: [PATCH 7/7] fix(config): add the new-file settings a config lacks at
  start
 
 The launch scripts build the mods before they start the game, and on a
@@ -15,23 +15,14 @@ Each start now adds the settings a new file has and the file lacks,
 keeping the player's own values. The list comes from the new-file code
 itself, written to a sample file next to the config.
 ---
- src/pinyon_shift_app.cpp | 56 +++++++++++++++++++++++++++++++++++++++-
- 1 file changed, 55 insertions(+), 1 deletion(-)
+ src/pinyon_shift_app.cpp | 58 ++++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 56 insertions(+), 2 deletions(-)
 
 diff --git a/src/pinyon_shift_app.cpp b/src/pinyon_shift_app.cpp
-index 18dc35f..661a361 100644
+index 8d28f59b..161300bb 100644
 --- a/src/pinyon_shift_app.cpp
 +++ b/src/pinyon_shift_app.cpp
-@@ -135,7 +135,7 @@ std::filesystem::path LongHostPath(std::filesystem::path path) {
- // driving-first keys (#432), older ones the keys they already had.
- constexpr uint32_t kConfigSchema = 29;
- 
--bool EnsureSupportedConfig(const std::filesystem::path& path, bool& created,
-+bool EnsureSupportedSchema(const std::filesystem::path& path, bool& created,
-                            bool& migrated) {
-   created = false;
-   migrated = false;
-@@ -462,6 +462,60 @@ bool EnsureSupportedConfig(const std::filesystem::path& path, bool& created,
+@@ -497,6 +497,60 @@ bool EnsureSupportedConfig(const std::filesystem::path& path, bool& created,
    }
  }
  
@@ -42,9 +33,9 @@ index 18dc35f..661a361 100644
 +// the older renderer settings. Each start now adds the settings a new file
 +// has and this one lacks; the player's own values stay. The new file is
 +// written by the code above, so the two cannot drift apart.
-+bool EnsureSupportedConfig(const std::filesystem::path& path, bool& created,
-+                           bool& migrated) {
-+  if (!EnsureSupportedSchema(path, created, migrated)) {
++bool EnsureCompleteConfig(const std::filesystem::path& path, bool& created,
++                          bool& migrated) {
++  if (!EnsureSupportedConfig(path, created, migrated)) {
 +    return false;
 +  }
 +  if (created) {
@@ -56,7 +47,7 @@ index 18dc35f..661a361 100644
 +  std::filesystem::remove(sample, error);
 +  bool sample_created = false;
 +  bool sample_migrated = false;
-+  const auto defaults = EnsureSupportedSchema(sample, sample_created, sample_migrated)
++  const auto defaults = EnsureSupportedConfig(sample, sample_created, sample_migrated)
 +                            ? pinyon_shift::config::ReadFile(sample)
 +                            : std::nullopt;
 +  std::filesystem::remove(sample, error);
@@ -92,6 +83,17 @@ index 18dc35f..661a361 100644
  // The GPU stopped answering: usually a driver reset after a frame took too
  // long (TDR) on a weak or integrated GPU, or a driver fault. The SDK used to
  // abort without a word (0xC0000409); say what happened and exit 1309 so the
+@@ -603,8 +657,8 @@ void PinyonShiftApp::OnConfigurePaths(rex::PathConfig& paths) {
+ 
+   bool config_created = false;
+   bool config_migrated = false;
+-  if (!EnsureSupportedConfig(paths.config_path, config_created,
+-                             config_migrated)) {
++  if (!EnsureCompleteConfig(paths.config_path, config_created,
++                            config_migrated)) {
+     diagnostics::RecordEvent("config.unsupported",
+                              {{"path", rex::path_to_utf8(paths.config_path)},
+                               {"required_schema", std::to_string(kConfigSchema)}});
 -- 
 2.43.0
 

@@ -1,7 +1,7 @@
-From 3a6bdc38a1cd2090d1820a7f4d602206b9079c2e Mon Sep 17 00:00:00 2001
+From e155c4d272a31589544f1c06bf1f04ab91dab365 Mon Sep 17 00:00:00 2001
 From: Ken5998 <46025606+Ken5998@users.noreply.github.com>
 Date: Tue, 13 Oct 2026 13:18:51 +0000
-Subject: [PATCH 1/2] feat(linux): build natively on arm64 linux handhelds
+Subject: [PATCH 1/7] feat(linux): build natively on arm64 linux handhelds
 
 ArmadaOS and other aarch64 Linux systems on Snapdragon handhelds
 had no build path: setup stopped at host_platform. ShiftGlue already
@@ -26,11 +26,11 @@ with LLVM 20.1.8; 11 of 11 host tests pass under qemu-aarch64
  create mode 100644 docs/LINUX_ARM64.md
 
 diff --git a/.gitignore b/.gitignore
-index f8adf1f..725adfd 100644
+index 83a69a11..31afc6df 100644
 --- a/.gitignore
 +++ b/.gitignore
-@@ -47,6 +47,7 @@ private/
- !/docs/FEATURE_BACKLOG.md
+@@ -52,6 +52,7 @@ private/
+ !/docs/UPSCALING_BACKLOG.md
  !/docs/ANDROID.md
  !/docs/LINUX.md
 +!/docs/LINUX_ARM64.md
@@ -38,11 +38,11 @@ index f8adf1f..725adfd 100644
  !/docs/android/
  !/docs/android/*.json
 diff --git a/CMakePresets.json b/CMakePresets.json
-index 755f498..7c571a9 100644
+index 0a63673f..af0f4ef6 100644
 --- a/CMakePresets.json
 +++ b/CMakePresets.json
-@@ -108,6 +108,49 @@
-         "CMAKE_BUILD_TYPE": "Release"
+@@ -155,6 +155,49 @@
+         "PINYON_SHIFT_GENERATED_DIR": "${sourceDir}/.local/generated-v4/default"
        }
      },
 +    {
@@ -91,9 +91,9 @@ index 755f498..7c571a9 100644
      {
        "name": "macos-base",
        "hidden": true,
-@@ -238,6 +281,18 @@
-       "name": "linux-amd64-release",
-       "configurePreset": "linux-amd64-release"
+@@ -313,6 +356,18 @@
+       "name": "linux-amd64-v4",
+       "configurePreset": "linux-amd64-v4"
      },
 +    {
 +      "name": "linux-arm64-debug",
@@ -112,7 +112,7 @@ index 755f498..7c571a9 100644
        "configurePreset": "macos-arm64-debug"
 diff --git a/cmake/toolchains/linux-arm64.cmake b/cmake/toolchains/linux-arm64.cmake
 new file mode 100644
-index 0000000..0ba841e
+index 00000000..0ba841e7
 --- /dev/null
 +++ b/cmake/toolchains/linux-arm64.cmake
 @@ -0,0 +1,51 @@
@@ -168,7 +168,7 @@ index 0000000..0ba841e
 +set(CMAKE_SHARED_LINKER_FLAGS_INIT "${_pinyon_link}")
 +set(CMAKE_MODULE_LINKER_FLAGS_INIT "${_pinyon_link}")
 diff --git a/config/release-toolchain.json b/config/release-toolchain.json
-index 2371da5..9a3606c 100644
+index bf22a487..5cb1d81c 100644
 --- a/config/release-toolchain.json
 +++ b/config/release-toolchain.json
 @@ -113,6 +113,41 @@
@@ -214,20 +214,20 @@ index 2371da5..9a3606c 100644
        "disk_space_gb": {
          "first_build": 20,
 diff --git a/docs/LINUX.md b/docs/LINUX.md
-index 5f268c6..6230d90 100644
+index 57481e41..1ca2af60 100644
 --- a/docs/LINUX.md
 +++ b/docs/LINUX.md
-@@ -123,6 +123,7 @@ microSD card under `/run/media/`.
+@@ -206,6 +206,7 @@ included, stays in the `data` folder next to it.
  | Ubuntu 24.04 (WSL) | Release archive to a built game in 20 minutes; Add to Steam writes the shortcut and art; runs with a null GPU |
  | Arch Linux (container, libxml2 2.15) | The pinned toolchain configures and links with setup's `ld.lld` wrapper (#472); a full build not run |
  | Other distributions, NVIDIA, Intel | Not tested yet |
 +| ARM64 handhelds (ArmadaOS) | Experimental native aarch64 build; see [ARM64 Linux handhelds](LINUX_ARM64.md) |
  
- Work still open, such as DLC import and the title update build on Linux, is
- tracked in the [Linux and Steam Deck backlog](LINUX_PORT_BACKLOG.md).
+ Work still open is tracked in the
+ [Linux and Steam Deck backlog](LINUX_PORT_BACKLOG.md).
 diff --git a/docs/LINUX_ARM64.md b/docs/LINUX_ARM64.md
 new file mode 100644
-index 0000000..ca9cc73
+index 00000000..ca9cc733
 --- /dev/null
 +++ b/docs/LINUX_ARM64.md
 @@ -0,0 +1,96 @@
@@ -328,7 +328,7 @@ index 0000000..ca9cc73
 +- Launching from Steam's Gaming Mode on ArmadaOS, where Steam itself runs
 +  under FEX, has not been verified.
 diff --git a/tools/pinyon_setup.py b/tools/pinyon_setup.py
-index a0a91c4..ea78ef9 100644
+index d700e16a..0fd5a8b1 100644
 --- a/tools/pinyon_setup.py
 +++ b/tools/pinyon_setup.py
 @@ -88,10 +88,12 @@ def host_platform() -> str:
@@ -416,7 +416,7 @@ index a0a91c4..ea78ef9 100644
  def require_xcode_tools() -> None:
      probe = subprocess.run(["xcode-select", "-p"], capture_output=True, text=True)
      if probe.returncode or not shutil.which("clang++"):
-@@ -647,6 +706,8 @@ def prepare_shiftglue(progress: Progress, config: dict) -> Path:
+@@ -649,6 +708,8 @@ def prepare_shiftglue(progress: Progress, config: dict) -> Path:
  PRESETS = {
      "linux-x86_64": {"sdk": "linux-amd64", "game": "linux-amd64",
                       "generator": "out/linux-amd64/Release/rexglue"},
@@ -425,7 +425,7 @@ index a0a91c4..ea78ef9 100644
      "macos-arm64": {"sdk": "mac-arm64", "game": "macos-arm64",
                      "generator": "out/mac-arm64/Release/rexglue"},
  }
-@@ -685,11 +746,14 @@ def build_environment(tools: dict) -> dict:
+@@ -687,7 +748,8 @@ def build_environment(tools: dict) -> dict:
      paths = [str(Path(tools[key]).parent) for key in ("cmake", "ninja") if key in tools]
      environment["PATH"] = os.pathsep.join(paths + [environment.get("PATH", "")])
      environment["SOURCE_DATE_EPOCH"] = SOURCE_DATE_EPOCH
@@ -435,13 +435,16 @@ index a0a91c4..ea78ef9 100644
      return environment
  
  
- def cpu_baseline(name: str) -> str:
+@@ -708,6 +770,8 @@ def cpu_baseline(name: str, cpuinfo: Path = Path("/proc/cpuinfo")) -> str:
+     PINYON_SHIFT_CPU_BASELINE (sse4.1, fma or v3) overrides it, for example
+     for a build copied to an older PC; the game's own guard stops a build on
+     a CPU without its baseline."""
 +    if name == "linux-arm64":
 +        return "armv8-a"
      if name != "linux-x86_64":
          return "native"
-     try:
-@@ -720,6 +784,11 @@ def build(progress: Progress, tools: dict, sdk: Path, python: Path, name: str,
+     chosen = os.environ.get("PINYON_SHIFT_CPU_BASELINE", "").strip()
+@@ -770,6 +834,11 @@ def build(progress: Progress, tools: dict, sdk: Path, python: Path, name: str,
          toolchain = [f"-DCMAKE_TOOLCHAIN_FILE={ROOT / 'cmake/toolchains/linux-x86_64-sniper.cmake'}",
                       f"-DCMAKE_C_COMPILER={llvm / 'clang'}",
                       f"-DCMAKE_CXX_COMPILER={llvm / 'clang++'}"]

@@ -1,7 +1,7 @@
-From fd513c2ee5cbc18807bc6866bcd19a0b48de1a37 Mon Sep 17 00:00:00 2001
+From c588502fb5ac7c9ceaa6a7273349ac6ece90e216 Mon Sep 17 00:00:00 2001
 From: Ken5998 <46025606+Ken5998@users.noreply.github.com>
 Date: Tue, 13 Oct 2026 15:10:04 +0000
-Subject: [PATCH 3/4] feat(linux): build on arm64 against a pinned sysroot
+Subject: [PATCH 3/7] feat(linux): build on arm64 against a pinned sysroot
 
 When release-toolchain.json pins an ARM64 sysroot, setup unpacks it like
 the Steam Runtime sysroot on x86-64 and the build takes headers, GCC 14's
@@ -16,7 +16,7 @@ development files as before.
  2 files changed, 103 insertions(+), 21 deletions(-)
 
 diff --git a/cmake/toolchains/linux-arm64.cmake b/cmake/toolchains/linux-arm64.cmake
-index fbbbf79..a1e2045 100644
+index fbbbf791..a1e20454 100644
 --- a/cmake/toolchains/linux-arm64.cmake
 +++ b/cmake/toolchains/linux-arm64.cmake
 @@ -2,16 +2,20 @@
@@ -91,7 +91,7 @@ index fbbbf79..a1e2045 100644
    set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
    set(ENV{PKG_CONFIG_LIBDIR} "/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig")
 diff --git a/tools/pinyon_setup.py b/tools/pinyon_setup.py
-index efb1e6c..8b1faad 100644
+index 28eeaeb6..ceaee62d 100644
 --- a/tools/pinyon_setup.py
 +++ b/tools/pinyon_setup.py
 @@ -403,9 +403,10 @@ def prepare_host_wrappers(folder: Path, tools: dict) -> None:
@@ -209,3 +209,6 @@ index efb1e6c..8b1faad 100644
  # On an x86-64 Debian or Ubuntu host (WSL included), the ARM64 build uses the
  # distribution's aarch64 cross GCC and its multiarch arm64 libraries.
  ARM64_CROSS_PACKAGES = (
+-- 
+2.43.0
+

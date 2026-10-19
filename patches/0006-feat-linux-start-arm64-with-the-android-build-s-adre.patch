@@ -1,7 +1,7 @@
-From 6a3690e17c3aaec6aad1b8587e431cee35c197fd Mon Sep 17 00:00:00 2001
+From 45bb6c82efc32e35740e91dd907b47b4471713ed Mon Sep 17 00:00:00 2001
 From: Ken5998 <46025606+Ken5998@users.noreply.github.com>
 Date: Tue, 13 Oct 2026 17:38:42 +0000
-Subject: [PATCH] feat(linux): start arm64 with the android build's adreno
+Subject: [PATCH 6/7] feat(linux): start arm64 with the android build's adreno
  defaults
 
 pinyon.py launch, which the launcher's Play runs, now passes every
@@ -19,7 +19,7 @@ docs/LINUX_ARM64.md lists the menu settings Android's SMOOTH 60 uses.
  2 files changed, 43 insertions(+), 11 deletions(-)
 
 diff --git a/docs/LINUX_ARM64.md b/docs/LINUX_ARM64.md
-index 37556b4..ce16a20 100644
+index 37556b41..ce16a20b 100644
 --- a/docs/LINUX_ARM64.md
 +++ b/docs/LINUX_ARM64.md
 @@ -127,13 +127,25 @@ has.
@@ -54,13 +54,13 @@ index 37556b4..ce16a20 100644
  
  ## Not done yet
 diff --git a/tools/pinyon.py b/tools/pinyon.py
-index 60dc020..8633d6c 100644
+index 0dcbfd45..2003fb1b 100644
 --- a/tools/pinyon.py
 +++ b/tools/pinyon.py
-@@ -60,6 +60,24 @@ import pinyon_xe  # noqa: E402
- ROOT = Path(__file__).resolve().parents[1]
+@@ -87,6 +87,24 @@ ROOT = Path(__file__).resolve().parents[1]
  WINDOWS = os.name == "nt"
  EXECUTABLE = "pinyon_shift.exe" if WINDOWS else "pinyon_shift"
+ EXTRACTOR = "pinyon_shift_fh1_archive_extract" + (".exe" if WINDOWS else "")
 +# ARM64 Linux handhelds have the Snapdragon SoCs and Adreno GPUs the Android
 +# build defaults are measured on, with the same Mesa Turnip driver, so they
 +# start with those defaults; arguments after `--` override each one. Settings
@@ -80,12 +80,12 @@ index 60dc020..8633d6c 100644
 +    "--vulkan_async_pipeline_wait_ms=0",
 +)
  STATE_DIRECTORIES = ("cache", "config", "crashes", "logs", "reports", "update", "user")
- 
- 
-@@ -187,12 +205,14 @@ def launch(args: argparse.Namespace) -> dict:
+ # Exits the game takes on purpose (src/pinyon_shift_app.cpp,
+ # pinyon_shift_runtime_hooks.cpp); a crash report would not help. POSIX keeps
+@@ -292,12 +310,14 @@ def launch(args: argparse.Namespace) -> dict:
+     environment.pop("PINYON_SHIFT_RALLY_PREPARED", None)
      if rally_ready:
          environment["PINYON_SHIFT_RALLY_PREPARED"] = "1"
-     arguments = list(args.game_arguments)
 -    # The Android build preallocates 256 MB of texture memory on the same
 -    # Adreno GPUs, where growing it during play stalled the GPU thread; ARM64
 -    # Linux handhelds start the same way unless told otherwise.
