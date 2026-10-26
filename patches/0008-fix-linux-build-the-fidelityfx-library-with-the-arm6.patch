@@ -1,4 +1,4 @@
-From 4300f77b64740a1427a9fc1ebf3843fac4410e43 Mon Sep 17 00:00:00 2001
+From 1b1e2794400d4b29479396e7104020dcc90d32f8 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Kenan=20Kasumovi=C4=87?=
  <46025606+Ken5998@users.noreply.github.com>
 Date: Mon, 19 Oct 2026 16:24:50 +0000
@@ -22,10 +22,10 @@ sysroot with the variable set
  2 files changed, 14 insertions(+)
 
 diff --git a/tools/pinyon_setup.py b/tools/pinyon_setup.py
-index ceaee62d..c4a95a69 100644
+index a572bf58..8b8e15d4 100644
 --- a/tools/pinyon_setup.py
 +++ b/tools/pinyon_setup.py
-@@ -859,6 +859,12 @@ def build_environment(tools: dict, target: str) -> dict:
+@@ -864,6 +864,12 @@ def build_environment(tools: dict, target: str) -> dict:
      environment["PATH"] = os.pathsep.join(paths + [environment.get("PATH", "")])
      environment["SOURCE_DATE_EPOCH"] = SOURCE_DATE_EPOCH
      environment["PINYON_LINUX_TOOLCHAIN"] = str(toolchain_folder(target))
@@ -38,7 +38,7 @@ index ceaee62d..c4a95a69 100644
      return environment
  
  
-@@ -994,6 +1000,8 @@ def build(progress: Progress, tools: dict, sdk: Path, python: Path, name: str,
+@@ -1063,6 +1069,8 @@ def build(progress: Progress, tools: dict, sdk: Path, python: Path, name: str,
                 LOGS / "preview-configure.log", progress, "build", 28, 30,
                 "Configuring the game", environment)
      directory = ROOT / "out" / "build" / preset
@@ -47,7 +47,7 @@ index ceaee62d..c4a95a69 100644
      run_game_build([cmake, "--build", "--preset", preset, "--parallel", str(jobs)],
                     LOGS / "preview-build.log", progress, 30, "Building the game", environment,
                     directory, generated)
-@@ -1121,6 +1129,7 @@ def build_v4(progress: Progress, tools: dict, sdk: Path, python: Path, name: str
+@@ -1190,6 +1198,7 @@ def build_v4(progress: Progress, tools: dict, sdk: Path, python: Path, name: str
                   f"-DCMAKE_CXX_FLAGS={CPU_BASELINE_FLAGS[baseline]}"]
      directory = ROOT / "out" / "build" / preset
      discard_unfinished_configure(directory)
@@ -56,10 +56,10 @@ index ceaee62d..c4a95a69 100644
      # path the preset names (#459).
      run_logged([cmake, "--preset", preset, f"-DREXSDK_DIR={sdk}", f"-DPYTHON_EXECUTABLE={python}",
 diff --git a/tools/tests/test_pinyon_setup.py b/tools/tests/test_pinyon_setup.py
-index 8fa787eb..54ca8b08 100644
+index fa846f18..767b97e3 100644
 --- a/tools/tests/test_pinyon_setup.py
 +++ b/tools/tests/test_pinyon_setup.py
-@@ -167,6 +167,11 @@ class ToolchainPinTests(unittest.TestCase):
+@@ -169,6 +169,11 @@ class ToolchainPinTests(unittest.TestCase):
              pinyon_setup.discard_unfinished_configure(build)
              self.assertTrue((build / "CMakeCache.txt").exists())
  
@@ -71,6 +71,3 @@ index 8fa787eb..54ca8b08 100644
      def test_a_build_whose_translation_rewrote_the_lists_runs_again(self):
          with tempfile.TemporaryDirectory() as temp:
              build = Path(temp) / "build"
--- 
-2.43.0
-

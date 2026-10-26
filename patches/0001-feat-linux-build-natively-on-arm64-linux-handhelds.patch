@@ -1,7 +1,7 @@
-From e155c4d272a31589544f1c06bf1f04ab91dab365 Mon Sep 17 00:00:00 2001
+From f999dd9d3f4f887c686b94fd69871b95299d800a Mon Sep 17 00:00:00 2001
 From: Ken5998 <46025606+Ken5998@users.noreply.github.com>
 Date: Tue, 13 Oct 2026 13:18:51 +0000
-Subject: [PATCH 1/7] feat(linux): build natively on arm64 linux handhelds
+Subject: [PATCH 1/8] feat(linux): build natively on arm64 linux handhelds
 
 ArmadaOS and other aarch64 Linux systems on Snapdragon handhelds
 had no build path: setup stopped at host_platform. ShiftGlue already
@@ -26,10 +26,10 @@ with LLVM 20.1.8; 11 of 11 host tests pass under qemu-aarch64
  create mode 100644 docs/LINUX_ARM64.md
 
 diff --git a/.gitignore b/.gitignore
-index 83a69a11..31afc6df 100644
+index 981b1082..7e3a3d29 100644
 --- a/.gitignore
 +++ b/.gitignore
-@@ -52,6 +52,7 @@ private/
+@@ -60,6 +60,7 @@ private/
  !/docs/UPSCALING_BACKLOG.md
  !/docs/ANDROID.md
  !/docs/LINUX.md
@@ -168,7 +168,7 @@ index 00000000..0ba841e7
 +set(CMAKE_SHARED_LINKER_FLAGS_INIT "${_pinyon_link}")
 +set(CMAKE_MODULE_LINKER_FLAGS_INIT "${_pinyon_link}")
 diff --git a/config/release-toolchain.json b/config/release-toolchain.json
-index bf22a487..5cb1d81c 100644
+index 0d6d9e64..ec3efdef 100644
 --- a/config/release-toolchain.json
 +++ b/config/release-toolchain.json
 @@ -113,6 +113,41 @@
@@ -214,10 +214,10 @@ index bf22a487..5cb1d81c 100644
        "disk_space_gb": {
          "first_build": 20,
 diff --git a/docs/LINUX.md b/docs/LINUX.md
-index 57481e41..1ca2af60 100644
+index 950d3933..72d3412b 100644
 --- a/docs/LINUX.md
 +++ b/docs/LINUX.md
-@@ -206,6 +206,7 @@ included, stays in the `data` folder next to it.
+@@ -219,6 +219,7 @@ included, stays in the `data` folder next to it.
  | Ubuntu 24.04 (WSL) | Release archive to a built game in 20 minutes; Add to Steam writes the shortcut and art; runs with a null GPU |
  | Arch Linux (container, libxml2 2.15) | The pinned toolchain configures and links with setup's `ld.lld` wrapper (#472); a full build not run |
  | Other distributions, NVIDIA, Intel | Not tested yet |
@@ -328,7 +328,7 @@ index 00000000..ca9cc733
 +- Launching from Steam's Gaming Mode on ArmadaOS, where Steam itself runs
 +  under FEX, has not been verified.
 diff --git a/tools/pinyon_setup.py b/tools/pinyon_setup.py
-index d700e16a..0fd5a8b1 100644
+index a680db8c..9bbbb52b 100644
 --- a/tools/pinyon_setup.py
 +++ b/tools/pinyon_setup.py
 @@ -88,10 +88,12 @@ def host_platform() -> str:
@@ -416,7 +416,7 @@ index d700e16a..0fd5a8b1 100644
  def require_xcode_tools() -> None:
      probe = subprocess.run(["xcode-select", "-p"], capture_output=True, text=True)
      if probe.returncode or not shutil.which("clang++"):
-@@ -649,6 +708,8 @@ def prepare_shiftglue(progress: Progress, config: dict) -> Path:
+@@ -654,6 +713,8 @@ def prepare_shiftglue(progress: Progress, config: dict) -> Path:
  PRESETS = {
      "linux-x86_64": {"sdk": "linux-amd64", "game": "linux-amd64",
                       "generator": "out/linux-amd64/Release/rexglue"},
@@ -425,7 +425,7 @@ index d700e16a..0fd5a8b1 100644
      "macos-arm64": {"sdk": "mac-arm64", "game": "macos-arm64",
                      "generator": "out/mac-arm64/Release/rexglue"},
  }
-@@ -687,7 +748,8 @@ def build_environment(tools: dict) -> dict:
+@@ -692,7 +753,8 @@ def build_environment(tools: dict) -> dict:
      paths = [str(Path(tools[key]).parent) for key in ("cmake", "ninja") if key in tools]
      environment["PATH"] = os.pathsep.join(paths + [environment.get("PATH", "")])
      environment["SOURCE_DATE_EPOCH"] = SOURCE_DATE_EPOCH
@@ -435,7 +435,7 @@ index d700e16a..0fd5a8b1 100644
      return environment
  
  
-@@ -708,6 +770,8 @@ def cpu_baseline(name: str, cpuinfo: Path = Path("/proc/cpuinfo")) -> str:
+@@ -713,6 +775,8 @@ def cpu_baseline(name: str, cpuinfo: Path = Path("/proc/cpuinfo")) -> str:
      PINYON_SHIFT_CPU_BASELINE (sse4.1, fma or v3) overrides it, for example
      for a build copied to an older PC; the game's own guard stops a build on
      a CPU without its baseline."""
@@ -444,11 +444,11 @@ index d700e16a..0fd5a8b1 100644
      if name != "linux-x86_64":
          return "native"
      chosen = os.environ.get("PINYON_SHIFT_CPU_BASELINE", "").strip()
-@@ -770,6 +834,11 @@ def build(progress: Progress, tools: dict, sdk: Path, python: Path, name: str,
-         toolchain = [f"-DCMAKE_TOOLCHAIN_FILE={ROOT / 'cmake/toolchains/linux-x86_64-sniper.cmake'}",
-                      f"-DCMAKE_C_COMPILER={llvm / 'clang'}",
+@@ -827,6 +891,11 @@ def build(progress: Progress, tools: dict, sdk: Path, python: Path, name: str,
                       f"-DCMAKE_CXX_COMPILER={llvm / 'clang++'}"]
-+    if name == "linux-arm64":
+     elif name == "macos-arm64":
+         toolchain = ["-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"]
++    elif name == "linux-arm64":
 +        llvm = LOCAL / "toolchain" / "linux-arm64" / "llvm" / "bin"
 +        toolchain = [f"-DCMAKE_TOOLCHAIN_FILE={ROOT / 'cmake/toolchains/linux-arm64.cmake'}",
 +                     f"-DCMAKE_C_COMPILER={llvm / 'clang'}",
@@ -456,6 +456,3 @@ index d700e16a..0fd5a8b1 100644
      generator = sdk / presets["generator"]
      discard_unfinished_configure(sdk / "out" / "build" / presets["sdk"])
      run_logged([cmake, "--preset", presets["sdk"], "-DREXGLUE_ENABLE_TRACY=OFF",
--- 
-2.43.0
-

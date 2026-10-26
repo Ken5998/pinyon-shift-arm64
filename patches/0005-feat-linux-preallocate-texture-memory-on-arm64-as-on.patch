@@ -1,7 +1,7 @@
-From fda10b3de65fd45a9427cfd7e2756f445440819f Mon Sep 17 00:00:00 2001
+From 081b66db263cc2deb3406a981da702837a07e92f Mon Sep 17 00:00:00 2001
 From: Ken5998 <46025606+Ken5998@users.noreply.github.com>
 Date: Tue, 13 Oct 2026 15:16:59 +0000
-Subject: [PATCH 5/7] feat(linux): preallocate texture memory on arm64 as on
+Subject: [PATCH 5/8] feat(linux): preallocate texture memory on arm64 as on
  android
 
 pinyon.py launch, which the launcher's Play runs, passes
@@ -50,6 +50,3 @@ index acf46a95..0dcbfd45 100644
      if args.hidden:
          environment["REX_WINDOW_HIDDEN"] = "1"
          arguments.append("--audio_mute=true")
--- 
-2.43.0
-

@@ -1,7 +1,7 @@
-From c180561396d4b605dd0028bf444b821fb8471f14 Mon Sep 17 00:00:00 2001
+From f2d2ff191b9c7db236dc005f509b580433c4732c Mon Sep 17 00:00:00 2001
 From: Ken5998 <46025606+Ken5998@users.noreply.github.com>
 Date: Tue, 13 Oct 2026 13:48:24 +0000
-Subject: [PATCH 2/7] feat(linux): cross-build the arm64 game on x86-64 linux
+Subject: [PATCH 2/8] feat(linux): cross-build the arm64 game on x86-64 linux
 
 A handheld is a poor place for a 30 GB build. setup --target
 linux-arm64 on x86-64 Debian or Ubuntu (WSL included) builds the
@@ -103,7 +103,7 @@ index ca9cc733..939b6e7b 100644
  ```bash
  cd ~/PinyonShift
 diff --git a/tools/pinyon_setup.py b/tools/pinyon_setup.py
-index 0fd5a8b1..28eeaeb6 100644
+index 9bbbb52b..615f3f8b 100644
 --- a/tools/pinyon_setup.py
 +++ b/tools/pinyon_setup.py
 @@ -10,6 +10,7 @@ translates the game and builds it, then records that the install is ready.
@@ -173,7 +173,7 @@ index 0fd5a8b1..28eeaeb6 100644
  def require_xcode_tools() -> None:
      probe = subprocess.run(["xcode-select", "-p"], capture_output=True, text=True)
      if probe.returncode or not shutil.which("clang++"):
-@@ -743,13 +796,12 @@ def run_logged(command: list, log: Path, progress: Progress, stage: str, start:
+@@ -748,13 +801,12 @@ def run_logged(command: list, log: Path, progress: Progress, stage: str, start:
      progress(stage, end, message)
  
  
@@ -189,7 +189,7 @@ index 0fd5a8b1..28eeaeb6 100644
      return environment
  
  
-@@ -822,9 +874,12 @@ def run_game_build(command: list, log: Path, progress: Progress, start: float, m
+@@ -877,9 +929,12 @@ def diagnose_macos_pch(directory: Path, build_log: Path, environment: dict) -> P
  
  
  def build(progress: Progress, tools: dict, sdk: Path, python: Path, name: str,
@@ -204,7 +204,7 @@ index 0fd5a8b1..28eeaeb6 100644
      cmake = str(tools["cmake"])
      toolchain = []
      if name == "linux-x86_64":
-@@ -867,8 +922,9 @@ def build(progress: Progress, tools: dict, sdk: Path, python: Path, name: str,
+@@ -936,8 +991,9 @@ def build(progress: Progress, tools: dict, sdk: Path, python: Path, name: str,
              raise SetupError("the translation reported unexpected warnings; see "
                               f"{LOGS / 'codegen.log'}\n{check.stdout}{check.stderr}", "build")
  
@@ -216,7 +216,7 @@ index 0fd5a8b1..28eeaeb6 100644
      flags = []
      if baseline in CPU_BASELINE_FLAGS:
          # Always passed: a reconfigure must not keep an earlier baseline.
-@@ -887,7 +943,7 @@ def build(progress: Progress, tools: dict, sdk: Path, python: Path, name: str,
+@@ -956,7 +1012,7 @@ def build(progress: Progress, tools: dict, sdk: Path, python: Path, name: str,
      executable = directory / "pinyon_shift"
      if not executable.is_file():
          raise SetupError(f"the build finished without {executable}", "build")
@@ -225,7 +225,7 @@ index 0fd5a8b1..28eeaeb6 100644
      controller_db = ROOT / "config" / "gamecontrollerdb.txt"
      if controller_db.is_file():
          shutil.copyfile(str(controller_db), str(directory / "gamecontrollerdb.txt"))
-@@ -901,7 +957,7 @@ def git_output(*arguments: str, cwd: Path = ROOT) -> str:
+@@ -970,7 +1026,7 @@ def git_output(*arguments: str, cwd: Path = ROOT) -> str:
  
  
  def write_provenance(directory: Path, executable: Path, sdk: Path, configuration: str,
@@ -234,7 +234,7 @@ index 0fd5a8b1..28eeaeb6 100644
      payload = ROOT / ".pinyon-source-sha256"
      record = {
          "schema_version": 3,
-@@ -911,7 +967,7 @@ def write_provenance(directory: Path, executable: Path, sdk: Path, configuration
+@@ -980,7 +1036,7 @@ def write_provenance(directory: Path, executable: Path, sdk: Path, configuration
          "executable": str(executable.relative_to(ROOT)),
          "executable_sha256": sha256_file(executable),
          "generated_locally": True,
@@ -243,7 +243,7 @@ index 0fd5a8b1..28eeaeb6 100644
          "pinyon_shift_commit": git_output("rev-parse", "HEAD"),
          "pinyon_shift_dirty": bool(git_output("status", "--porcelain", "--untracked-files=no")),
          "pinyon_shift_source_payload_sha256": (payload.read_text(encoding="ascii").strip()
-@@ -971,7 +1027,7 @@ def build_v4(progress: Progress, tools: dict, sdk: Path, python: Path, name: str
+@@ -1040,7 +1096,7 @@ def build_v4(progress: Progress, tools: dict, sdk: Path, python: Path, name: str
          # copy2 keeps the times, so the build's regeneration step sees no change.
          shutil.copy2(str(game / f"{module}.xex"), str(codegen / f"{module}.xex"))
          shutil.copy2(str(update / f"{module}.xexp"), str(codegen / f"{module}.xexp"))
@@ -252,7 +252,7 @@ index 0fd5a8b1..28eeaeb6 100644
      cmake = str(tools["cmake"])
      LOGS.mkdir(parents=True, exist_ok=True)
      # Configure reads the generated tree's sources.cmake, so a first v4 build
-@@ -1035,7 +1091,7 @@ def build_v4(progress: Progress, tools: dict, sdk: Path, python: Path, name: str
+@@ -1104,7 +1160,7 @@ def build_v4(progress: Progress, tools: dict, sdk: Path, python: Path, name: str
          if check.returncode:
              raise SetupError("The v4 code generation log has unreviewed warnings.\n"
                               f"{check.stdout}{check.stderr}", "build")
@@ -261,7 +261,7 @@ index 0fd5a8b1..28eeaeb6 100644
      controller_db = ROOT / "config" / "gamecontrollerdb.txt"
      if controller_db.is_file():
          shutil.copyfile(str(controller_db), str(directory / "gamecontrollerdb.txt"))
-@@ -1093,6 +1149,10 @@ def setup(args: argparse.Namespace) -> int:
+@@ -1162,6 +1218,10 @@ def setup(args: argparse.Namespace) -> int:
  def run_setup(args: argparse.Namespace) -> int:
      progress = Progress(args.json)
      name = host_platform()
@@ -272,7 +272,7 @@ index 0fd5a8b1..28eeaeb6 100644
      config = toolchain_config()
      LOGS.mkdir(parents=True, exist_ok=True)
      error_file = LOGS / "setup-error.json"
-@@ -1112,7 +1172,9 @@ def run_setup(args: argparse.Namespace) -> int:
+@@ -1181,7 +1241,9 @@ def run_setup(args: argparse.Namespace) -> int:
                  raise SetupError(f"{remaining:.0f} GB of free space is needed to finish the "
                                   f"first build ({free_space_gb(LOCAL):.0f} GB free)", "verify")
          if args.tools_only:
@@ -283,7 +283,7 @@ index 0fd5a8b1..28eeaeb6 100644
              prepare_shiftglue(progress, config)
              return 0
          dump = None
-@@ -1142,9 +1204,11 @@ def run_setup(args: argparse.Namespace) -> int:
+@@ -1211,9 +1273,11 @@ def run_setup(args: argparse.Namespace) -> int:
          elif not game_ready():
              raise SetupError("choose your disc image (--iso) first", "verify")
          tools = provision(progress, config, name)
@@ -296,7 +296,7 @@ index 0fd5a8b1..28eeaeb6 100644
          if dump is None:
              dump, _ = load_catalog()
          state = {
-@@ -1154,7 +1218,7 @@ def run_setup(args: argparse.Namespace) -> int:
+@@ -1223,7 +1287,7 @@ def run_setup(args: argparse.Namespace) -> int:
              "source_kind": source_kind or "existing",
              "iso_sha256": None,
              "verified_by": "extracted-file-catalog",
@@ -305,7 +305,7 @@ index 0fd5a8b1..28eeaeb6 100644
              "result": "ready",
          }
          (LOCAL / "setup-state.json").write_text(json.dumps(state, indent=2) + "\n",
-@@ -1185,6 +1249,9 @@ def add_parser(commands) -> None:
+@@ -1254,6 +1318,9 @@ def add_parser(commands) -> None:
      parser.add_argument("--configuration", choices=("Release", "RelWithDebInfo"),
                          default="Release")
      parser.add_argument("--jobs", type=int, help="parallel compile jobs")
@@ -315,6 +315,3 @@ index 0fd5a8b1..28eeaeb6 100644
      parser.add_argument("--json", action="store_true", help="print ::pinyon:: progress events")
  
  
--- 
-2.43.0
-

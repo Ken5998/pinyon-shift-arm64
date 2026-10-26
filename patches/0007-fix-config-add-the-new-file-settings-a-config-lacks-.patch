@@ -1,7 +1,7 @@
-From 9704dcc8bd033518134920062a0c626b7a7683b8 Mon Sep 17 00:00:00 2001
+From 1fc1a8eff0566b407522d1881d16b9c303d1b76a Mon Sep 17 00:00:00 2001
 From: Ken5998 <46025606+Ken5998@users.noreply.github.com>
 Date: Tue, 13 Oct 2026 19:54:58 +0000
-Subject: [PATCH 7/7] fix(config): add the new-file settings a config lacks at
+Subject: [PATCH 7/8] fix(config): add the new-file settings a config lacks at
  start
 
 The launch scripts build the mods before they start the game, and on a
@@ -19,10 +19,10 @@ itself, written to a sample file next to the config.
  1 file changed, 56 insertions(+), 2 deletions(-)
 
 diff --git a/src/pinyon_shift_app.cpp b/src/pinyon_shift_app.cpp
-index 8d28f59b..161300bb 100644
+index 937adf63..e80e1f12 100644
 --- a/src/pinyon_shift_app.cpp
 +++ b/src/pinyon_shift_app.cpp
-@@ -497,6 +497,60 @@ bool EnsureSupportedConfig(const std::filesystem::path& path, bool& created,
+@@ -584,6 +584,60 @@ bool EnsureSupportedConfig(const std::filesystem::path& path, bool& created,
    }
  }
  
@@ -83,7 +83,7 @@ index 8d28f59b..161300bb 100644
  // The GPU stopped answering: usually a driver reset after a frame took too
  // long (TDR) on a weak or integrated GPU, or a driver fault. The SDK used to
  // abort without a word (0xC0000409); say what happened and exit 1309 so the
-@@ -603,8 +657,8 @@ void PinyonShiftApp::OnConfigurePaths(rex::PathConfig& paths) {
+@@ -725,8 +779,8 @@ void PinyonShiftApp::OnConfigurePaths(rex::PathConfig& paths) {
  
    bool config_created = false;
    bool config_migrated = false;
@@ -94,6 +94,3 @@ index 8d28f59b..161300bb 100644
      diagnostics::RecordEvent("config.unsupported",
                               {{"path", rex::path_to_utf8(paths.config_path)},
                                {"required_schema", std::to_string(kConfigSchema)}});
--- 
-2.43.0
-

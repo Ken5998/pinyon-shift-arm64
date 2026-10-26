@@ -1,7 +1,7 @@
-From 1e8ccddedaff1d2043d7244e1e042760d54d523e Mon Sep 17 00:00:00 2001
+From aef5c5d1486210e418985be7001343c4d6b0de38 Mon Sep 17 00:00:00 2001
 From: Ken5998 <46025606+Ken5998@users.noreply.github.com>
 Date: Tue, 13 Oct 2026 15:10:34 +0000
-Subject: [PATCH 4/7] feat(launcher): package and run the linux launcher on
+Subject: [PATCH 4/8] feat(launcher): package and run the linux launcher on
  arm64
 
 The desktop launcher picks the linux-arm64 setup platform and build
@@ -185,10 +185,10 @@ index 253cd08b..34412d53 100644
      return 0
  
 diff --git a/tools/tests/test_release_contract.py b/tools/tests/test_release_contract.py
-index 0250c176..c1135802 100644
+index 4ef27733..e43e9201 100644
 --- a/tools/tests/test_release_contract.py
 +++ b/tools/tests/test_release_contract.py
-@@ -122,6 +122,10 @@ if ((Get-PinyonVisualStudioRoot) -ne 'compatible-vs2022') { throw 'Supported too
+@@ -123,6 +123,10 @@ if ((Get-PinyonVisualStudioRoot) -ne 'compatible-vs2022') { throw 'Supported too
          workflow = (ROOT / ".github/workflows/release.yml").read_text()
          updater = (ROOT / "launcher/Shared/LauncherUpdate.cs").read_text(encoding="utf-8")
          assets = dict(re.findall(r'public const string (\w+Asset) = "([^"]+)";', updater))
@@ -199,6 +199,3 @@ index 0250c176..c1135802 100644
          self.assertEqual(set(assets), {"WindowsAsset", "LinuxAsset", "MacAsset"})
          for asset in assets.values():
              self.assertIn(f".artifacts/{asset}", workflow)
--- 
-2.43.0
-

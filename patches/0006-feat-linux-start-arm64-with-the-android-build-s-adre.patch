@@ -1,7 +1,7 @@
-From 45bb6c82efc32e35740e91dd907b47b4471713ed Mon Sep 17 00:00:00 2001
+From 3a77c35aee7a9e991be920516e4ad3c1f3d46674 Mon Sep 17 00:00:00 2001
 From: Ken5998 <46025606+Ken5998@users.noreply.github.com>
 Date: Tue, 13 Oct 2026 17:38:42 +0000
-Subject: [PATCH 6/7] feat(linux): start arm64 with the android build's adreno
+Subject: [PATCH 6/8] feat(linux): start arm64 with the android build's adreno
  defaults
 
 pinyon.py launch, which the launcher's Play runs, now passes every
@@ -103,6 +103,3 @@ index 0dcbfd45..2003fb1b 100644
      if args.hidden:
          environment["REX_WINDOW_HIDDEN"] = "1"
          arguments.append("--audio_mute=true")
--- 
-2.43.0
-
