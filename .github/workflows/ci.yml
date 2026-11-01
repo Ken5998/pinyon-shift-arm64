@@ -22,6 +22,10 @@ on:
       ref:
         type: string
         required: false
+      overlay:
+        description: Branch of this repository to build (default the calling commit)
+        type: string
+        required: false
 
 permissions:
   contents: read
@@ -33,6 +37,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.overlay }}
       - name: Build the ARM64 sysroot
         run: scripts/build-sysroot.sh out/sysroot
       - uses: actions/upload-artifact@v7
@@ -59,6 +65,8 @@ jobs:
             libwayland-egl libdecor mesa-libEGL mesa-libGL mesa-libgbm libdrm alsa-lib \
             pulseaudio-libs pipewire-libs systemd-libs dbus-libs
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.overlay }}
       - uses: actions/download-artifact@v7
         with:
           name: arm64-sysroot
@@ -80,6 +88,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.overlay }}
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '8.0.x'
@@ -104,6 +114,8 @@ jobs:
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
           df -h /
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.overlay }}
       - name: Install the cross compiler and arm64 packages
         run: |
           scripts/wsl-setup.sh

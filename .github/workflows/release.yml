@@ -17,6 +17,10 @@ on:
       ref:
         type: string
         required: false
+      overlay:
+        description: Branch of this repository to release from (default the calling commit)
+        type: string
+        required: false
 
 permissions:
   contents: write
@@ -28,6 +32,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          ref: ${{ inputs.overlay }}
           fetch-depth: 0
       - name: Check that a sysroot is published
         run: |

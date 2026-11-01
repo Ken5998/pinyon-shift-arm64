@@ -22,7 +22,8 @@ forbids distributing the disc, the generated translation or the binary.
 | `.github/workflows/ci.yml` | Builds the sysroot, then runs `ci-host.sh` on GitHub's `ubuntu-24.04-arm` runner in a bare Fedora 44 (the base of ArmadaOS) with that sysroot, the cross build on x86-64, and packages the launcher. |
 | `.github/workflows/sysroot.yml` | On demand: publishes the sysroot as release `sysroot-VERSION` and pins it in `sysroot.json`. |
 | `.github/workflows/release.yml` | Publishes the launcher for an upstream release as release `vVERSION`. |
-| `.github/workflows/upstream-check.yml` | Every Monday: if upstream has a newer release, runs the CI on it, then records it in `upstream.json` and publishes its launcher when green, or opens an issue when not. |
+| `scripts/rebase-upstream.sh TAG` | Rebases `patches/` from the release `upstream.json` pins onto upstream `TAG` and records `TAG` there; stops and names the patch when one no longer applies. |
+| `.github/workflows/upstream-check.yml` | Every Monday: if upstream has a newer release, rebases the patches onto it on branch `ci/upstream-vX.Y.Z` and runs the CI there; green is merged into `main` and its launcher released, red (or a patch that no longer applies) opens an issue. |
 
 ## How a release is made
 
@@ -34,7 +35,8 @@ forbids distributing the disc, the generated translation or the binary.
    release `sysroot-VERSION` and pins it in `sysroot.json`.
 3. `release.yml` publishes the launcher for the upstream release in
    `upstream.json` as release `vVERSION`. Every Monday `upstream-check.yml`
-   tries the newest upstream release and runs it when CI is green.
+   rebases the patches onto the newest upstream release, and merges and
+   releases it when CI is green.
 
 The launcher a release ships checks this repository for updates, and
 downloads the sysroot, LLVM, CMake and Ninja into
