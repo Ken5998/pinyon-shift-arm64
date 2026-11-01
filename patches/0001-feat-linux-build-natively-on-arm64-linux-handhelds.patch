@@ -1,4 +1,4 @@
-From f999dd9d3f4f887c686b94fd69871b95299d800a Mon Sep 17 00:00:00 2001
+From 5aa74b8636aa319d21ecfcd29398d7e9f66304e1 Mon Sep 17 00:00:00 2001
 From: Ken5998 <46025606+Ken5998@users.noreply.github.com>
 Date: Tue, 13 Oct 2026 13:18:51 +0000
 Subject: [PATCH 1/8] feat(linux): build natively on arm64 linux handhelds
@@ -26,10 +26,10 @@ with LLVM 20.1.8; 11 of 11 host tests pass under qemu-aarch64
  create mode 100644 docs/LINUX_ARM64.md
 
 diff --git a/.gitignore b/.gitignore
-index 981b1082..7e3a3d29 100644
+index 0c842f5..7f3c057 100644
 --- a/.gitignore
 +++ b/.gitignore
-@@ -60,6 +60,7 @@ private/
+@@ -61,6 +61,7 @@ private/
  !/docs/UPSCALING_BACKLOG.md
  !/docs/ANDROID.md
  !/docs/LINUX.md
@@ -38,7 +38,7 @@ index 981b1082..7e3a3d29 100644
  !/docs/android/
  !/docs/android/*.json
 diff --git a/CMakePresets.json b/CMakePresets.json
-index 0a63673f..af0f4ef6 100644
+index 0a63673..af0f4ef 100644
 --- a/CMakePresets.json
 +++ b/CMakePresets.json
 @@ -155,6 +155,49 @@
@@ -112,7 +112,7 @@ index 0a63673f..af0f4ef6 100644
        "configurePreset": "macos-arm64-debug"
 diff --git a/cmake/toolchains/linux-arm64.cmake b/cmake/toolchains/linux-arm64.cmake
 new file mode 100644
-index 00000000..0ba841e7
+index 0000000..0ba841e
 --- /dev/null
 +++ b/cmake/toolchains/linux-arm64.cmake
 @@ -0,0 +1,51 @@
@@ -168,7 +168,7 @@ index 00000000..0ba841e7
 +set(CMAKE_SHARED_LINKER_FLAGS_INIT "${_pinyon_link}")
 +set(CMAKE_MODULE_LINKER_FLAGS_INIT "${_pinyon_link}")
 diff --git a/config/release-toolchain.json b/config/release-toolchain.json
-index 0d6d9e64..ec3efdef 100644
+index 678d6e0..f72305c 100644
 --- a/config/release-toolchain.json
 +++ b/config/release-toolchain.json
 @@ -113,6 +113,41 @@
@@ -214,7 +214,7 @@ index 0d6d9e64..ec3efdef 100644
        "disk_space_gb": {
          "first_build": 20,
 diff --git a/docs/LINUX.md b/docs/LINUX.md
-index 950d3933..72d3412b 100644
+index 950d393..72d3412 100644
 --- a/docs/LINUX.md
 +++ b/docs/LINUX.md
 @@ -219,6 +219,7 @@ included, stays in the `data` folder next to it.
@@ -227,7 +227,7 @@ index 950d3933..72d3412b 100644
  [Linux and Steam Deck backlog](LINUX_PORT_BACKLOG.md).
 diff --git a/docs/LINUX_ARM64.md b/docs/LINUX_ARM64.md
 new file mode 100644
-index 00000000..ca9cc733
+index 0000000..ca9cc73
 --- /dev/null
 +++ b/docs/LINUX_ARM64.md
 @@ -0,0 +1,96 @@
@@ -328,7 +328,7 @@ index 00000000..ca9cc733
 +- Launching from Steam's Gaming Mode on ArmadaOS, where Steam itself runs
 +  under FEX, has not been verified.
 diff --git a/tools/pinyon_setup.py b/tools/pinyon_setup.py
-index a680db8c..9bbbb52b 100644
+index a680db8..9bbbb52 100644
 --- a/tools/pinyon_setup.py
 +++ b/tools/pinyon_setup.py
 @@ -88,10 +88,12 @@ def host_platform() -> str:
@@ -456,3 +456,6 @@ index a680db8c..9bbbb52b 100644
      generator = sdk / presets["generator"]
      discard_unfinished_configure(sdk / "out" / "build" / presets["sdk"])
      run_logged([cmake, "--preset", presets["sdk"], "-DREXGLUE_ENABLE_TRACY=OFF",
+-- 
+2.43.0
+

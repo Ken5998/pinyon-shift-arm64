@@ -1,4 +1,4 @@
-From 3a77c35aee7a9e991be920516e4ad3c1f3d46674 Mon Sep 17 00:00:00 2001
+From 59fc1725ca86c55bebc02934a5d0922bc1b07407 Mon Sep 17 00:00:00 2001
 From: Ken5998 <46025606+Ken5998@users.noreply.github.com>
 Date: Tue, 13 Oct 2026 17:38:42 +0000
 Subject: [PATCH 6/8] feat(linux): start arm64 with the android build's adreno
@@ -19,7 +19,7 @@ docs/LINUX_ARM64.md lists the menu settings Android's SMOOTH 60 uses.
  2 files changed, 43 insertions(+), 11 deletions(-)
 
 diff --git a/docs/LINUX_ARM64.md b/docs/LINUX_ARM64.md
-index 37556b41..ce16a20b 100644
+index 37556b4..ce16a20 100644
 --- a/docs/LINUX_ARM64.md
 +++ b/docs/LINUX_ARM64.md
 @@ -127,13 +127,25 @@ has.
@@ -54,7 +54,7 @@ index 37556b41..ce16a20b 100644
  
  ## Not done yet
 diff --git a/tools/pinyon.py b/tools/pinyon.py
-index 0dcbfd45..2003fb1b 100644
+index 0dcbfd4..2003fb1 100644
 --- a/tools/pinyon.py
 +++ b/tools/pinyon.py
 @@ -87,6 +87,24 @@ ROOT = Path(__file__).resolve().parents[1]
@@ -103,3 +103,6 @@ index 0dcbfd45..2003fb1b 100644
      if args.hidden:
          environment["REX_WINDOW_HIDDEN"] = "1"
          arguments.append("--audio_mute=true")
+-- 
+2.43.0
+

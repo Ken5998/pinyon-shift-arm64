@@ -1,4 +1,4 @@
-From f2d2ff191b9c7db236dc005f509b580433c4732c Mon Sep 17 00:00:00 2001
+From 03265199b9b3dd3f925905e47238eafe27002fa9 Mon Sep 17 00:00:00 2001
 From: Ken5998 <46025606+Ken5998@users.noreply.github.com>
 Date: Tue, 13 Oct 2026 13:48:24 +0000
 Subject: [PATCH 2/8] feat(linux): cross-build the arm64 game on x86-64 linux
@@ -19,7 +19,7 @@ toolchain layout on Ubuntu 24.04; 11 of 11 pass under qemu-aarch64
  3 files changed, 133 insertions(+), 20 deletions(-)
 
 diff --git a/cmake/toolchains/linux-arm64.cmake b/cmake/toolchains/linux-arm64.cmake
-index 0ba841e7..fbbbf791 100644
+index 0ba841e..fbbbf79 100644
 --- a/cmake/toolchains/linux-arm64.cmake
 +++ b/cmake/toolchains/linux-arm64.cmake
 @@ -49,3 +49,15 @@ endif()
@@ -39,7 +39,7 @@ index 0ba841e7..fbbbf791 100644
 +  set(ENV{PKG_CONFIG_PATH} "")
 +endif()
 diff --git a/docs/LINUX_ARM64.md b/docs/LINUX_ARM64.md
-index ca9cc733..939b6e7b 100644
+index ca9cc73..939b6e7 100644
 --- a/docs/LINUX_ARM64.md
 +++ b/docs/LINUX_ARM64.md
 @@ -8,10 +8,10 @@ Retroid Pocket 6 (Snapdragon 8 Gen 2, Adreno 740); other Fedora-based or
@@ -103,7 +103,7 @@ index ca9cc733..939b6e7b 100644
  ```bash
  cd ~/PinyonShift
 diff --git a/tools/pinyon_setup.py b/tools/pinyon_setup.py
-index 9bbbb52b..615f3f8b 100644
+index 9bbbb52..615f3f8 100644
 --- a/tools/pinyon_setup.py
 +++ b/tools/pinyon_setup.py
 @@ -10,6 +10,7 @@ translates the game and builds it, then records that the install is ready.
@@ -315,3 +315,6 @@ index 9bbbb52b..615f3f8b 100644
      parser.add_argument("--json", action="store_true", help="print ::pinyon:: progress events")
  
  
+-- 
+2.43.0
+

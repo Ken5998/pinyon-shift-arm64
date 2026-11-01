@@ -1,4 +1,4 @@
-From 1b1e2794400d4b29479396e7104020dcc90d32f8 Mon Sep 17 00:00:00 2001
+From 1e0f4de7c5569a5cfec33a992c421f4622390015 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Kenan=20Kasumovi=C4=87?=
  <46025606+Ken5998@users.noreply.github.com>
 Date: Mon, 19 Oct 2026 16:24:50 +0000
@@ -22,7 +22,7 @@ sysroot with the variable set
  2 files changed, 14 insertions(+)
 
 diff --git a/tools/pinyon_setup.py b/tools/pinyon_setup.py
-index a572bf58..8b8e15d4 100644
+index a572bf5..8b8e15d 100644
 --- a/tools/pinyon_setup.py
 +++ b/tools/pinyon_setup.py
 @@ -864,6 +864,12 @@ def build_environment(tools: dict, target: str) -> dict:
@@ -56,7 +56,7 @@ index a572bf58..8b8e15d4 100644
      # path the preset names (#459).
      run_logged([cmake, "--preset", preset, f"-DREXSDK_DIR={sdk}", f"-DPYTHON_EXECUTABLE={python}",
 diff --git a/tools/tests/test_pinyon_setup.py b/tools/tests/test_pinyon_setup.py
-index fa846f18..767b97e3 100644
+index fa846f1..767b97e 100644
 --- a/tools/tests/test_pinyon_setup.py
 +++ b/tools/tests/test_pinyon_setup.py
 @@ -169,6 +169,11 @@ class ToolchainPinTests(unittest.TestCase):
@@ -71,3 +71,6 @@ index fa846f18..767b97e3 100644
      def test_a_build_whose_translation_rewrote_the_lists_runs_again(self):
          with tempfile.TemporaryDirectory() as temp:
              build = Path(temp) / "build"
+-- 
+2.43.0
+

@@ -1,4 +1,4 @@
-From aef5c5d1486210e418985be7001343c4d6b0de38 Mon Sep 17 00:00:00 2001
+From 96535a03695892df8ffbdea421fc5ab34dbe7802 Mon Sep 17 00:00:00 2001
 From: Ken5998 <46025606+Ken5998@users.noreply.github.com>
 Date: Tue, 13 Oct 2026 15:10:34 +0000
 Subject: [PATCH 4/8] feat(launcher): package and run the linux launcher on
@@ -18,7 +18,7 @@ archive, and package-launcher.py publishes that archive with
  6 files changed, 44 insertions(+), 16 deletions(-)
 
 diff --git a/docs/LINUX_ARM64.md b/docs/LINUX_ARM64.md
-index 939b6e7b..5834e52f 100644
+index 939b6e7..5834e52 100644
 --- a/docs/LINUX_ARM64.md
 +++ b/docs/LINUX_ARM64.md
 @@ -20,11 +20,24 @@ Debian-based ARM64 distributions work the same way.
@@ -58,7 +58,7 @@ index 939b6e7b..5834e52f 100644
  - Launching from Steam's Gaming Mode on ArmadaOS, where Steam itself runs
    under FEX, has not been verified.
 diff --git a/launcher/PinyonShift.Launcher.Desktop/Installation.cs b/launcher/PinyonShift.Launcher.Desktop/Installation.cs
-index 192abbe4..12c237b8 100644
+index a045537..b784454 100644
 --- a/launcher/PinyonShift.Launcher.Desktop/Installation.cs
 +++ b/launcher/PinyonShift.Launcher.Desktop/Installation.cs
 @@ -57,17 +57,19 @@ public sealed class Installation
@@ -84,7 +84,7 @@ index 192abbe4..12c237b8 100644
          // a portable install has dropped it from the environment.
          StateRoot = FromEnvironment("PINYON_SHIFT_STATE_ROOT") ?? Path.Combine(root, ".local", "preview");
 diff --git a/launcher/PinyonShift.Launcher.Desktop/MainWindow.axaml.cs b/launcher/PinyonShift.Launcher.Desktop/MainWindow.axaml.cs
-index 95a95a02..315b198f 100644
+index 394708f..e39371d 100644
 --- a/launcher/PinyonShift.Launcher.Desktop/MainWindow.axaml.cs
 +++ b/launcher/PinyonShift.Launcher.Desktop/MainWindow.axaml.cs
 @@ -92,10 +92,11 @@ public partial class MainWindow : Window
@@ -102,7 +102,7 @@ index 95a95a02..315b198f 100644
      }
  
 diff --git a/launcher/Shared/LauncherUpdate.cs b/launcher/Shared/LauncherUpdate.cs
-index b35fa991..5fa1bfd0 100644
+index dad275a..a67b9a3 100644
 --- a/launcher/Shared/LauncherUpdate.cs
 +++ b/launcher/Shared/LauncherUpdate.cs
 @@ -95,6 +95,7 @@ public static class LauncherUpdate
@@ -124,7 +124,7 @@ index b35fa991..5fa1bfd0 100644
      /// <summary>False when PINYON_SHIFT_UPDATE_CHECK is 0, false or off.</summary>
      public static bool CheckEnabled =>
 diff --git a/tools/package-launcher.py b/tools/package-launcher.py
-index 253cd08b..34412d53 100644
+index 253cd08..34412d5 100644
 --- a/tools/package-launcher.py
 +++ b/tools/package-launcher.py
 @@ -2,6 +2,7 @@
@@ -185,7 +185,7 @@ index 253cd08b..34412d53 100644
      return 0
  
 diff --git a/tools/tests/test_release_contract.py b/tools/tests/test_release_contract.py
-index 4ef27733..e43e9201 100644
+index 33faa86..57cb42b 100644
 --- a/tools/tests/test_release_contract.py
 +++ b/tools/tests/test_release_contract.py
 @@ -123,6 +123,10 @@ if ((Get-PinyonVisualStudioRoot) -ne 'compatible-vs2022') { throw 'Supported too
@@ -199,3 +199,6 @@ index 4ef27733..e43e9201 100644
          self.assertEqual(set(assets), {"WindowsAsset", "LinuxAsset", "MacAsset"})
          for asset in assets.values():
              self.assertIn(f".artifacts/{asset}", workflow)
+-- 
+2.43.0
+
