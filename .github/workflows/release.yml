@@ -62,13 +62,17 @@ jobs:
           sha256="$(sha256sum "$archive" | cut -d' ' -f1)"
           scripts/release-notes.sh "v$version" > notes.md
           cat >> notes.md <<NOTES
-          ## Install
+          ## Playing it on the handheld
 
-          Pinyon Shift $version ([upstream $upstream](https://github.com/arcanite24/pinyon-shift/releases/tag/$upstream)) for ARM64 Linux handhelds, such as the Retroid Pocket 6 on ArmadaOS.
+          Pinyon Shift $version follows [upstream $upstream](https://github.com/arcanite24/pinyon-shift/releases/tag/$upstream). You bring an ISO of the USA retail disc (MS-2505); the launcher turns it into a native ARM64 build on the handheld itself.
 
-          On the device, in Desktop Mode: unpack PinyonShift-Launcher-linux-arm64.tar.gz, start PinyonShift/PinyonShiftLauncher and choose your own ISO of the USA retail disc. The launcher downloads its build tools and the ARM64 sysroot $sysroot, builds the game on the device (about 35 GB free; keep it on the charger) and starts it. It needs git and Python 3.11 or newer on the device. The launcher offers the next release when one is published here.
+          1. In Desktop Mode, extract PinyonShift-Launcher-linux-arm64.tar.gz in your home folder and open PinyonShift/PinyonShiftLauncher.
+          2. Pick the ISO and press **Verify and build**. Plan 25 to 60 minutes on the charger and about 35 GB free; *Copying the game files* can sit at 0.0 GB for a few minutes before it moves.
+          3. Press **Add to Steam** and start the game from Steam, so the handheld's controls reach it.
 
-          No game files are included. SHA-256: \`$sha256\`
+          Select + Start (or F6) opens the in-game settings; the README lists the ones that hold 60 fps with shadows on the Retroid Pocket 6. Already installed? The launcher offers this release by itself.
+
+          Launcher SHA-256: \`$sha256\` (no game data in this release)
           NOTES
           if gh release view "v$version" > /dev/null 2>&1; then
             gh release upload "v$version" "$archive" --clobber
