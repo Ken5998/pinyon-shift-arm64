@@ -1,4 +1,4 @@
-From 1e0f4de7c5569a5cfec33a992c421f4622390015 Mon Sep 17 00:00:00 2001
+From de9633d5851dd4242774149da4d860d7e2b1ab1f Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Kenan=20Kasumovi=C4=87?=
  <46025606+Ken5998@users.noreply.github.com>
 Date: Mon, 19 Oct 2026 16:24:50 +0000
@@ -22,10 +22,10 @@ sysroot with the variable set
  2 files changed, 14 insertions(+)
 
 diff --git a/tools/pinyon_setup.py b/tools/pinyon_setup.py
-index a572bf5..8b8e15d 100644
+index 9f2c974..3ffc0d8 100644
 --- a/tools/pinyon_setup.py
 +++ b/tools/pinyon_setup.py
-@@ -864,6 +864,12 @@ def build_environment(tools: dict, target: str) -> dict:
+@@ -1071,6 +1071,12 @@ def build_environment(tools: dict, target: str) -> dict:
      environment["PATH"] = os.pathsep.join(paths + [environment.get("PATH", "")])
      environment["SOURCE_DATE_EPOCH"] = SOURCE_DATE_EPOCH
      environment["PINYON_LINUX_TOOLCHAIN"] = str(toolchain_folder(target))
@@ -38,7 +38,7 @@ index a572bf5..8b8e15d 100644
      return environment
  
  
-@@ -1063,6 +1069,8 @@ def build(progress: Progress, tools: dict, sdk: Path, python: Path, name: str,
+@@ -1286,6 +1292,8 @@ def build(progress: Progress, tools: dict, sdk: Path, python: Path, name: str,
                 LOGS / "preview-configure.log", progress, "build", 28, 30,
                 "Configuring the game", environment)
      directory = ROOT / "out" / "build" / preset
@@ -47,19 +47,19 @@ index a572bf5..8b8e15d 100644
      run_game_build([cmake, "--build", "--preset", preset, "--parallel", str(jobs)],
                     LOGS / "preview-build.log", progress, 30, "Building the game", environment,
                     directory, generated)
-@@ -1190,6 +1198,7 @@ def build_v4(progress: Progress, tools: dict, sdk: Path, python: Path, name: str
+@@ -1535,6 +1543,7 @@ def build_v4(progress: Progress, tools: dict, sdk: Path, python: Path, name: str
                   f"-DCMAKE_CXX_FLAGS={CPU_BASELINE_FLAGS[baseline]}"]
      directory = ROOT / "out" / "build" / preset
      discard_unfinished_configure(directory)
 +    discard_unfinished_configure(directory / "fidelityfx-vk")
      # A release install keeps the SDK in .local/rexglue, not in the submodule
      # path the preset names (#459).
-     run_logged([cmake, "--preset", preset, f"-DREXSDK_DIR={sdk}", f"-DPYTHON_EXECUTABLE={python}",
+     host_objects = install_host_objects(progress, name, "v4") if is_kit(sdk) else ""
 diff --git a/tools/tests/test_pinyon_setup.py b/tools/tests/test_pinyon_setup.py
-index fa846f1..767b97e 100644
+index 6801428..7108dfb 100644
 --- a/tools/tests/test_pinyon_setup.py
 +++ b/tools/tests/test_pinyon_setup.py
-@@ -169,6 +169,11 @@ class ToolchainPinTests(unittest.TestCase):
+@@ -220,6 +220,11 @@ class ToolchainPinTests(unittest.TestCase):
              pinyon_setup.discard_unfinished_configure(build)
              self.assertTrue((build / "CMakeCache.txt").exists())
  

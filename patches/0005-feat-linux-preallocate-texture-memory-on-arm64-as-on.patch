@@ -1,4 +1,4 @@
-From d719c6c8a53a54ca82061b85f51449fa0f2abc3a Mon Sep 17 00:00:00 2001
+From ddd1f84ca6c2b6654cb8914e3a22fa0c9ea29220 Mon Sep 17 00:00:00 2001
 From: Ken5998 <46025606+Ken5998@users.noreply.github.com>
 Date: Tue, 13 Oct 2026 15:16:59 +0000
 Subject: [PATCH 5/8] feat(linux): preallocate texture memory on arm64 as on
@@ -34,10 +34,10 @@ index 5834e52..37556b4 100644
  
  ## Not done yet
 diff --git a/tools/pinyon.py b/tools/pinyon.py
-index acf46a9..0dcbfd4 100644
+index 8e099d9..ceba0c8 100644
 --- a/tools/pinyon.py
 +++ b/tools/pinyon.py
-@@ -292,6 +292,12 @@ def launch(args: argparse.Namespace) -> dict:
+@@ -303,6 +303,12 @@ def launch(args: argparse.Namespace) -> dict:
      environment.pop("PINYON_SHIFT_RALLY_PREPARED", None)
      if rally_ready:
          environment["PINYON_SHIFT_RALLY_PREPARED"] = "1"

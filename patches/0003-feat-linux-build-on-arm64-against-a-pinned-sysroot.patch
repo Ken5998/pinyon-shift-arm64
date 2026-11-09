@@ -1,4 +1,4 @@
-From aa379b092944add2bd2202c89fa8e41d2ac40466 Mon Sep 17 00:00:00 2001
+From 39af33a484dff1d40ec4e865acef225c3b42fe71 Mon Sep 17 00:00:00 2001
 From: Ken5998 <46025606+Ken5998@users.noreply.github.com>
 Date: Tue, 13 Oct 2026 15:10:04 +0000
 Subject: [PATCH 3/8] feat(linux): build on arm64 against a pinned sysroot
@@ -91,10 +91,10 @@ index fbbbf79..a1e2045 100644
    set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
    set(ENV{PKG_CONFIG_LIBDIR} "/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig")
 diff --git a/tools/pinyon_setup.py b/tools/pinyon_setup.py
-index 615f3f8..a572bf5 100644
+index 976650f..9f2c974 100644
 --- a/tools/pinyon_setup.py
 +++ b/tools/pinyon_setup.py
-@@ -403,9 +403,10 @@ def prepare_host_wrappers(folder: Path, tools: dict) -> None:
+@@ -452,9 +452,10 @@ def prepare_host_wrappers(folder: Path, tools: dict) -> None:
          wrapper.chmod(0o755)
  
  
@@ -108,7 +108,7 @@ index 615f3f8..a572bf5 100644
  ARM64_HOST_PACKAGES = (
      "gcc-c++ libstdc++-static glibc-devel lld git python3 pkgconf-pkg-config "
      "libX11-devel libxcb-devel libXext-devel libXcursor-devel libXi-devel "
-@@ -417,21 +418,30 @@ ARM64_PKG_CONFIG = ("x11-xcb", "wayland-client", "xkbcommon", "xcursor", "xi", "
+@@ -466,21 +467,30 @@ ARM64_PKG_CONFIG = ("x11-xcb", "wayland-client", "xkbcommon", "xcursor", "xi", "
                      "xscrnsaver", "xfixes", "xtst", "egl", "libdecor-0")
  
  
@@ -149,7 +149,7 @@ index 615f3f8..a572bf5 100644
      # The LLVM release's ld.lld links libxml2.so.2, which libxml2 2.14 and
      # later no longer provide; the distribution's lld runs everywhere.
      linker = None
-@@ -452,12 +462,59 @@ def prepare_linux_arm64_toolchain(tools: dict) -> None:
+@@ -501,12 +511,59 @@ def prepare_linux_arm64_toolchain(tools: dict) -> None:
              "the ARM64 build needs development files this system does not have ("
              + ", ".join(missing) + "). On Fedora or in a Fedora distrobox install them with: "
              "sudo dnf install " + ARM64_HOST_PACKAGES + " (docs/LINUX_ARM64.md)", "tools")

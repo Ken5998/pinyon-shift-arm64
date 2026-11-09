@@ -1,4 +1,4 @@
-From 5aa74b8636aa319d21ecfcd29398d7e9f66304e1 Mon Sep 17 00:00:00 2001
+From 462c1e28e5e00b483a69b1d6c3c91ab8fc06d947 Mon Sep 17 00:00:00 2001
 From: Ken5998 <46025606+Ken5998@users.noreply.github.com>
 Date: Tue, 13 Oct 2026 13:18:51 +0000
 Subject: [PATCH 1/8] feat(linux): build natively on arm64 linux handhelds
@@ -26,10 +26,10 @@ with LLVM 20.1.8; 11 of 11 host tests pass under qemu-aarch64
  create mode 100644 docs/LINUX_ARM64.md
 
 diff --git a/.gitignore b/.gitignore
-index 0c842f5..7f3c057 100644
+index 7469a5b..d614f41 100644
 --- a/.gitignore
 +++ b/.gitignore
-@@ -61,6 +61,7 @@ private/
+@@ -65,6 +65,7 @@ private/
  !/docs/UPSCALING_BACKLOG.md
  !/docs/ANDROID.md
  !/docs/LINUX.md
@@ -38,7 +38,7 @@ index 0c842f5..7f3c057 100644
  !/docs/android/
  !/docs/android/*.json
 diff --git a/CMakePresets.json b/CMakePresets.json
-index 0a63673..af0f4ef 100644
+index afe77b8..1c63cc6 100644
 --- a/CMakePresets.json
 +++ b/CMakePresets.json
 @@ -155,6 +155,49 @@
@@ -91,7 +91,7 @@ index 0a63673..af0f4ef 100644
      {
        "name": "macos-base",
        "hidden": true,
-@@ -313,6 +356,18 @@
+@@ -361,6 +404,18 @@
        "name": "linux-amd64-v4",
        "configurePreset": "linux-amd64-v4"
      },
@@ -168,10 +168,10 @@ index 0000000..0ba841e
 +set(CMAKE_SHARED_LINKER_FLAGS_INIT "${_pinyon_link}")
 +set(CMAKE_MODULE_LINKER_FLAGS_INIT "${_pinyon_link}")
 diff --git a/config/release-toolchain.json b/config/release-toolchain.json
-index 678d6e0..f72305c 100644
+index 076dc23..3763924 100644
 --- a/config/release-toolchain.json
 +++ b/config/release-toolchain.json
-@@ -113,6 +113,41 @@
+@@ -126,6 +126,41 @@
          "executable": "bin/python3"
        }
      },
@@ -328,10 +328,10 @@ index 0000000..ca9cc73
 +- Launching from Steam's Gaming Mode on ArmadaOS, where Steam itself runs
 +  under FEX, has not been verified.
 diff --git a/tools/pinyon_setup.py b/tools/pinyon_setup.py
-index a680db8..9bbbb52 100644
+index c97f492..1c6f396 100644
 --- a/tools/pinyon_setup.py
 +++ b/tools/pinyon_setup.py
-@@ -88,10 +88,12 @@ def host_platform() -> str:
+@@ -89,13 +89,15 @@ def host_platform() -> str:
      machine = platform.machine().lower()
      if sys.platform.startswith("linux") and machine in ("x86_64", "amd64"):
          return "linux-x86_64"
@@ -339,22 +339,25 @@ index a680db8..9bbbb52 100644
 +        return "linux-arm64"
      if sys.platform == "darwin" and machine in ("arm64", "aarch64"):
          return "macos-arm64"
+     if sys.platform == "darwin" and machine in ("x86_64", "amd64"):
+         # Experimental: built and run under Rosetta, not yet on Intel or AMD GPUs.
+         return "macos-x86_64"
      raise SetupError(f"no build for {sys.platform} on {machine}: Pinyon Shift builds on "
--                     "x86-64 Linux, Apple silicon Macs and Windows")
-+                     "x86-64 and ARM64 Linux, Apple silicon Macs and Windows")
+-                     "x86-64 Linux, Macs and Windows")
++                     "x86-64 and ARM64 Linux, Macs and Windows")
  
  
- def toolchain_config() -> dict:
-@@ -334,6 +336,8 @@ def provision(progress: Progress, config: dict, name: str) -> dict:
+ MACOS_PLATFORMS = ("macos-arm64", "macos-x86_64")
+@@ -383,6 +385,8 @@ def provision(progress: Progress, config: dict, name: str) -> dict:
          found[key] = install / item["executable"] if item.get("executable") else install
      if name == "linux-x86_64":
          prepare_linux_toolchain(tools)
 +    if name == "linux-arm64":
 +        prepare_linux_arm64_toolchain(tools)
-     if name == "macos-arm64":
+     if name in MACOS_PLATFORMS:
          require_xcode_tools()
      progress("tools", 100, "Toolchain ready")
-@@ -398,6 +402,61 @@ def prepare_host_wrappers(folder: Path, tools: dict) -> None:
+@@ -447,6 +451,61 @@ def prepare_host_wrappers(folder: Path, tools: dict) -> None:
          wrapper.chmod(0o755)
  
  
@@ -416,7 +419,7 @@ index a680db8..9bbbb52 100644
  def require_xcode_tools() -> None:
      probe = subprocess.run(["xcode-select", "-p"], capture_output=True, text=True)
      if probe.returncode or not shutil.which("clang++"):
-@@ -654,6 +713,8 @@ def prepare_shiftglue(progress: Progress, config: dict) -> Path:
+@@ -859,6 +918,8 @@ def sdk_revision(sdk: Path) -> str:
  PRESETS = {
      "linux-x86_64": {"sdk": "linux-amd64", "game": "linux-amd64",
                       "generator": "out/linux-amd64/Release/rexglue"},
@@ -424,8 +427,8 @@ index a680db8..9bbbb52 100644
 +                    "generator": "out/linux-arm64/Release/rexglue"},
      "macos-arm64": {"sdk": "mac-arm64", "game": "macos-arm64",
                      "generator": "out/mac-arm64/Release/rexglue"},
- }
-@@ -692,7 +753,8 @@ def build_environment(tools: dict) -> dict:
+     "macos-x86_64": {"sdk": "mac-amd64", "game": "macos-amd64",
+@@ -899,7 +960,8 @@ def build_environment(tools: dict) -> dict:
      paths = [str(Path(tools[key]).parent) for key in ("cmake", "ninja") if key in tools]
      environment["PATH"] = os.pathsep.join(paths + [environment.get("PATH", "")])
      environment["SOURCE_DATE_EPOCH"] = SOURCE_DATE_EPOCH
@@ -435,27 +438,27 @@ index a680db8..9bbbb52 100644
      return environment
  
  
-@@ -713,6 +775,8 @@ def cpu_baseline(name: str, cpuinfo: Path = Path("/proc/cpuinfo")) -> str:
-     PINYON_SHIFT_CPU_BASELINE (sse4.1, fma or v3) overrides it, for example
-     for a build copied to an older PC; the game's own guard stops a build on
-     a CPU without its baseline."""
+@@ -922,6 +984,8 @@ def cpu_baseline(name: str, cpuinfo: Path = Path("/proc/cpuinfo")) -> str:
+     a CPU without its baseline. An Intel Mac reports its features through
+     sysctl; under Rosetta, whose instruction set depends on the macOS
+     version, the build keeps SSE4.1."""
 +    if name == "linux-arm64":
 +        return "armv8-a"
-     if name != "linux-x86_64":
+     if name not in ("linux-x86_64", "macos-x86_64"):
          return "native"
      chosen = os.environ.get("PINYON_SHIFT_CPU_BASELINE", "").strip()
-@@ -827,6 +891,11 @@ def build(progress: Progress, tools: dict, sdk: Path, python: Path, name: str,
-                      f"-DCMAKE_CXX_COMPILER={llvm / 'clang++'}"]
-     elif name == "macos-arm64":
-         toolchain = ["-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"]
-+    elif name == "linux-arm64":
+@@ -1050,6 +1114,11 @@ def toolchain_arguments(name: str) -> list[str]:
+                 f"-DCMAKE_CXX_COMPILER={llvm / 'clang++'}"]
+     if name == "macos-arm64":
+         return ["-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"]
++    if name == "linux-arm64":
 +        llvm = LOCAL / "toolchain" / "linux-arm64" / "llvm" / "bin"
-+        toolchain = [f"-DCMAKE_TOOLCHAIN_FILE={ROOT / 'cmake/toolchains/linux-arm64.cmake'}",
-+                     f"-DCMAKE_C_COMPILER={llvm / 'clang'}",
-+                     f"-DCMAKE_CXX_COMPILER={llvm / 'clang++'}"]
-     generator = sdk / presets["generator"]
-     discard_unfinished_configure(sdk / "out" / "build" / presets["sdk"])
-     run_logged([cmake, "--preset", presets["sdk"], "-DREXGLUE_ENABLE_TRACY=OFF",
++        return [f"-DCMAKE_TOOLCHAIN_FILE={ROOT / 'cmake/toolchains/linux-arm64.cmake'}",
++                f"-DCMAKE_C_COMPILER={llvm / 'clang'}",
++                f"-DCMAKE_CXX_COMPILER={llvm / 'clang++'}"]
+     if name == "macos-x86_64":
+         # ShiftGlue's mac-amd64 preset compiles for x86-64-v3, which every
+         # Intel Mac on macOS 13 has but Rosetta may not; the translator and
 -- 
 2.43.0
 
